@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
@@ -5,6 +6,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, desc, delete
 from sqlalchemy.orm import selectinload
+from app.config import settings
 from app.db.session import async_session_maker
 from app.db.models import User, Apartment, Ticket, TicketStatus, Bill, Poll, PollOption, PollVote, UserRole
 from app.bot.states.user_states import (
@@ -17,6 +19,7 @@ from app.bot.states.user_states import (
 from app.bot.keyboards.keyboards import get_main_menu_keyboard, get_admin_panel_keyboard, get_cancel_keyboard
 from app.bot.handlers.tickets import CATEGORY_NAMES, URGENCY_NAMES
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 # ==========================================
