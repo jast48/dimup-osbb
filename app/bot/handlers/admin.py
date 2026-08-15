@@ -806,16 +806,22 @@ async def process_broadcast_text(message: Message, state: FSMContext, bot: Bot):
 @router.callback_query(F.data == "admin_residents")
 async def cb_residents_list(callback: CallbackQuery):
     async with async_session_maker() as session:
-        res = await session.execute(select(User).limit(20))
+        res = await session.execute(select(User).order_by(User.id))
         users = res.scalars().all()
         
     if not users:
-        await callback.message.answer("Список мешканців порожній.")
+        await callback.message.delete()
+        await callback.message.answer(
+            "👥 <b>Реєстр зареєстрованих користувачів:</b>\n\n"
+            "<i>Зараз у базі зареєстровано 0 мешканців. Як тільки вони напишуть /start у боті, вони з'являться тут!</i>",
+            reply_markup=get_admin_panel_keyboard(),
+            parse_mode="HTML"
+        )
         return
 
     await callback.message.delete()
     await callback.message.answer(
-        "👥 <b>Реєстр зареєстрованих користувачів:</b>\n"
+        f"👥 <b>Реєстр зареєстрованих користувачів (Всього: {len(users)}):</b>\n"
         "<i>Натисніть на кнопку під користувачем для керування правами доступу:</i>",
         parse_mode="HTML"
     )
