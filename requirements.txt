@@ -9,6 +9,7 @@ jinja2>=3.1.4
 # Database & ORM (Async SQLAlchemy)
 SQLAlchemy>=2.0.36
 aiosqlite>=0.20.0
+asyncpg>=0.30.0
 greenlet>=3.1.1
 
 # AI: Google Gemini
