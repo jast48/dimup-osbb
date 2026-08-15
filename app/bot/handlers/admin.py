@@ -822,59 +822,59 @@ async def cb_residents_list(callback: CallbackQuery, bot: Bot):
         await callback.answer("Список мешканців порожній.", show_alert=True)
         return
 
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    text = f"👥 <b>Реєстр зареєстрованих користувачів ({len(users)}):</b>\n\n"
+    keyboard_buttons = []
 
-    await bot.send_message(
-        chat_id,
-        f"👥 <b>Реєстр зареєстрованих користувачів ({len(users)}):</b>\n"
-        "<i>Натисніть на кнопку під користувачем для керування правами доступу:</i>",
+    for idx, u in enumerate(users, 1):
+        is_owner = (
+            u.telegram_id == settings.ADMIN_TELEGRAM_ID 
+            or str(getattr(u, "role", "")).lower() == "super_admin" 
+            or u.role == UserRole.SUPER_ADMIN
+        )
+        
+        user_name_short = str(u.full_name or "Користувач")[:16]
+        if is_owner:
+            role_badge = "👑 Головний Власник 🔒"
+            btn_text = f"🔒 {user_name_short} (Власник)"
+            cb_data = "owner_protected_click"
+        elif u.role in (UserRole.ADMIN, UserRole.BOARD) or str(getattr(u, "role", "")).lower() in ("admin", "board"):
+            role_badge = "👑 Адміністратор"
+            btn_text = f"🔻 Зняти адміна: {user_name_short}"
+            cb_data = f"demote_admin_{u.id}"
+        else:
+            role_badge = "👤 Мешканець"
+            btn_text = f"👑 Надати адміна: {user_name_short}"
+            cb_data = f"promote_admin_{u.id}"
+
+        name_clean = html.escape(str(u.full_name or "Без імені"))
+        username_clean = f"@{html.escape(str(u.username))}" if u.username else "—"
+        phone_clean = html.escape(str(u.phone)) if u.phone else "—"
+        apt_num = user_apt_map.get(u.id, "—")
+
+        text += (
+            f"<b>{idx}. {name_clean}</b> ({username_clean})\n"
+            f"🏢 Квартира: <b>№{apt_num}</b> | 📱 Тел: {phone_clean}\n"
+            f"🏷 Статус: <b>{role_badge}</b>\n\n"
+        )
+        keyboard_buttons.append([InlineKeyboardButton(text=btn_text, callback_data=cb_data)])
+
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад до панелі", callback_data="admin_panel_open")])
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    try:
+        await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="HTML")
+    except Exception:
+        await bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode="HTML")
+
+
+@router.callback_query(F.data == "admin_panel_open")
+async def cb_admin_panel_open(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "🏢 <b>Панель управління ОСББ</b>\n\n"
+        "Оберіть потрібну дію з меню нижче:",
+        reply_markup=get_admin_panel_keyboard(),
         parse_mode="HTML"
     )
-
-    for u in users:
-        try:
-            is_owner = (
-                u.telegram_id == settings.ADMIN_TELEGRAM_ID 
-                or str(getattr(u, "role", "")).lower() == "super_admin" 
-                or u.role == UserRole.SUPER_ADMIN
-            )
-            
-            if is_owner:
-                role_label = "👑 Головний Власник (Суперадмін) 🔒"
-                btn_text = "🔒 Права захищено (Власник)"
-                cb_data = "owner_protected_click"
-            elif u.role in (UserRole.ADMIN, UserRole.BOARD) or str(getattr(u, "role", "")).lower() in ("admin", "board"):
-                role_label = "👑 Голова / Адмін"
-                btn_text = "🔻 Зняти права адміна"
-                cb_data = f"demote_admin_{u.id}"
-            else:
-                role_label = "👤 Мешканець"
-                btn_text = "👑 Надати права адміна"
-                cb_data = f"promote_admin_{u.id}"
-
-            name_clean = html.escape(str(u.full_name or "Без імені"))
-            username_clean = f"@{html.escape(str(u.username))}" if u.username else "без_юзернейма"
-            phone_clean = html.escape(str(u.phone)) if u.phone else "—"
-            apt_num = user_apt_map.get(u.id, "—")
-
-            user_info = (
-                f"👤 <b>{name_clean}</b> ({username_clean})\n"
-                f"🏢 Квартира: <b>№{apt_num}</b>\n"
-                f"📱 Тел: {phone_clean}\n"
-                f"🏷 Роль: <b>{role_label}</b>"
-            )
-
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text=btn_text, callback_data=cb_data)]]
-            )
-            await bot.send_message(chat_id, user_info, reply_markup=kb, parse_mode="HTML")
-        except Exception as e:
-            logger.error(f"Error sending resident card {getattr(u, 'id', '?')}: {e}")
-
-    await bot.send_message(chat_id, "Панель управління:", reply_markup=get_admin_panel_keyboard())
 
 
 @router.callback_query(F.data == "owner_protected_click")
