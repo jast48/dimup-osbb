@@ -29,8 +29,25 @@ async def cmd_start(message: Message, state: FSMContext):
         result = await session.execute(select(User).where(User.telegram_id == telegram_id))
         user = result.scalar_one_or_none()
         
-        # Если это ID главного владельца системы из .env, гарантируем роль SUPER_ADMIN
-        if user and telegram_id == settings.ADMIN_TELEGRAM_ID and user.role != UserRole.SUPER_ADMIN:
+        # Если это главный владелец и его еще нет в новой базе — создаем мгновенно!
+        if not user and telegram_id == settings.ADMIN_TELEGRAM_ID:
+            user = User(
+                telegram_id=telegram_id,
+                username=message.from_user.username,
+                full_name=message.from_user.full_name or "Головний Власник",
+                role=UserRole.SUPER_ADMIN,
+                is_verified=True
+            )
+            session.add(user)
+            await session.commit()
+            
+            # Привязываем к квартире 1 по умолчанию
+            apt_res = await session.execute(select(Apartment).where(Apartment.number == 1))
+            apt = apt_res.scalar_one_or_none()
+            if apt:
+                apt.resident_id = user.id
+                await session.commit()
+        elif user and telegram_id == settings.ADMIN_TELEGRAM_ID and user.role != UserRole.SUPER_ADMIN:
             user.role = UserRole.SUPER_ADMIN
             user.is_verified = True
             await session.commit()
@@ -38,7 +55,7 @@ async def cmd_start(message: Message, state: FSMContext):
         if user:
             # Пользователь уже зарегистрирован
             await message.answer(
-                f"👋 Вітаємо знову, <b>{user.full_name}</b>!\n\n"
+                f"👋 Вітаємо, <b>{user.full_name}</b>!\n\n"
                 f"🏢 <b>DimUp</b> — цифрова система нашого будинку.\n"
                 f"Оберіть потрібний розділ меню нижче:",
                 reply_markup=get_main_menu_keyboard(user.role),
@@ -50,7 +67,7 @@ async def cmd_start(message: Message, state: FSMContext):
                 "👋 <b>Ласкаво просимо до DimUp!</b>\n\n"
                 "Це розумний помічник нашого будинку. Щоб користуватися системою, подавати заявки "
                 "та бачити нарахування, пройдіть коротку реєстрацію (це займе 30 секунд).\n\n"
-                "🔢 <b>Введіть номер вашої квартири</b> (наприклад: <code>45</code>):",
+                "🔢 <b>Введіть номер вашої квартири</b> (наприклад: <code>5</code>):",
                 reply_markup=get_cancel_keyboard(),
                 parse_mode="HTML"
             )
