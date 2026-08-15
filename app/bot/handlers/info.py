@@ -389,21 +389,23 @@ async def cb_resident_my_tickets(callback: CallbackQuery):
 
     await callback.message.delete()
     for t in tickets:
+        voice_status = "✅ Є аудіозапис" if t.audio_file_id else "📝 Текст"
+        photo_status = "✅ Додано" if t.photo_file_id else "❌ Немає"
+
         text = (
             f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status)}]\n"
             f"📅 <b>Дата:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}\n\n"
             f"📝 <b>Текст:</b> {t.description}\n"
         )
         if t.ai_summary:
             text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
 
         media_row = [
-            InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}")
+            InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}"),
+            InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{t.id}"),
+            InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}")
         ]
-        if t.audio_file_id:
-            media_row.append(InlineKeyboardButton(text="🎙 Моє голосове", callback_data=f"show_ticket_voice_{t.id}"))
-        if t.photo_file_id:
-            media_row.append(InlineKeyboardButton(text="📷 Моє фото", callback_data=f"show_ticket_photo_{t.id}"))
 
         kb = InlineKeyboardMarkup(inline_keyboard=[media_row])
         await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")

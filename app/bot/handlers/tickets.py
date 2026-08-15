@@ -58,13 +58,14 @@ async def cmd_new_ticket(message: Message, state: FSMContext):
     await state.set_state(TicketState.waiting_for_description)
 
 
-@router.message(TicketState.waiting_for_description, F.text | F.voice)
+@router.message(TicketState.waiting_for_description, F.text | F.voice | F.photo)
 async def process_ticket_description(message: Message, state: FSMContext, bot: Bot):
-    """Обработка текста или голосового сообщения жильца"""
+    """Обработка текста, голосового сообщения или прямого фото жильца"""
     loading_msg = await message.answer("🤖 <i>AI аналізує ваше звернення...</i>", parse_mode="HTML")
     
     recognized_text = ""
     audio_file_id = None
+    photo_file_id = None
 
     if message.voice:
         # Голосовое сообщение
@@ -76,6 +77,18 @@ async def process_ticket_description(message: Message, state: FSMContext, bot: B
 
         ai_res = await AIService.classify_ticket(audio_bytes=audio_bytes, audio_mime_type="audio/ogg")
         recognized_text = ai_res.get("recognized_text") or "Голосове повідомлення"
+    elif message.photo:
+        # Прямое фото с подписью или без
+        photo_file_id = message.photo[-1].file_id
+        caption = message.caption.strip() if message.caption else "Фото поломки в будинку"
+        recognized_text = caption
+
+        photo_file = await bot.get_file(photo_file_id)
+        photo_stream = io.BytesIO()
+        await bot.download_file(photo_file.file_path, destination=photo_stream)
+        image_bytes = photo_stream.getvalue()
+
+        ai_res = await AIService.classify_ticket(description=caption, image_bytes=image_bytes)
     else:
         # Текстовое сообщение
         description = message.text.strip()
@@ -104,28 +117,30 @@ async def process_ticket_description(message: Message, state: FSMContext, bot: B
         category=category.value,
         urgency=urgency.value,
         ai_summary=advice,
-        photo_file_id=None,
+        photo_file_id=photo_file_id,
         audio_file_id=audio_file_id
     )
 
     voice_badge = "🎙 <i>(Розпізнано з вашого голосу)</i>\n" if message.voice else ""
+    photo_badge = "📷 <i>(Фото успішно прикріплено)</i>\n" if photo_file_id else ""
 
     text = (
         f"💡 <b>Результат AI-аналізу вашої заявки:</b>\n\n"
-        f"{voice_badge}"
+        f"{voice_badge}{photo_badge}"
         f"📝 <b>Опис:</b> {recognized_text}\n"
         f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(category)}\n"
         f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(urgency)}\n\n"
         f"🤖 <b>Порада від AI:</b>\n<i>{advice}</i>\n\n"
-        f"📷 Бажаєте додати <b>фото поломки</b>? (Надішліть фото або натисніть «Пропустити фото»):"
     )
 
-    await message.answer(
-        text,
-        reply_markup=get_ticket_photo_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(TicketState.waiting_for_photo)
+    if photo_file_id:
+        text += "Надіслати заявку до диспетчерської служби?"
+        await message.answer(text, reply_markup=get_ticket_confirm_keyboard(), parse_mode="HTML")
+        await state.set_state(TicketState.confirming_ticket)
+    else:
+        text += "📷 Бажаєте додати <b>фото поломки</b>? (Надішліть фото або натисніть «Пропустити фото»):"
+        await message.answer(text, reply_markup=get_ticket_photo_keyboard(), parse_mode="HTML")
+        await state.set_state(TicketState.waiting_for_photo)
 
 
 @router.message(TicketState.waiting_for_photo, F.photo)

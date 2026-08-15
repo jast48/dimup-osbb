@@ -72,34 +72,35 @@ async def cb_admin_tickets(callback: CallbackQuery):
             apt = apt_res.scalar_one_or_none()
             apt_num = apt.number if apt else "—"
 
+        voice_status = "✅ Є аудіозапис" if t.audio_file_id else "📝 Текстова"
+        photo_status = "✅ Є фото" if t.photo_file_id else "❌ Немає"
+
         text = (
             f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status)}]\n"
             f"👤 <b>Мешканець:</b> {author_name} (Кв. №{apt_num})\n"
             f"📞 <b>Тел:</b> {author_phone}\n"
             f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(t.category)}\n"
-            f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(t.urgency)}\n\n"
+            f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(t.urgency)}\n"
+            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}\n\n"
             f"📝 <b>Опис:</b> {t.description}\n"
         )
         if t.ai_summary:
             text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
 
-        buttons = []
-        media_row = [
-            InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}")
+        buttons = [
+            [
+                InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}"),
+                InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{t.id}"),
+                InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}")
+            ],
+            [
+                InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{t.id}_in_progress"),
+                InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{t.id}_resolved")
+            ],
+            [
+                InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{t.id}_cancelled")
+            ]
         ]
-        if t.audio_file_id:
-            media_row.append(InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{t.id}"))
-        if t.photo_file_id:
-            media_row.append(InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}"))
-        buttons.append(media_row)
-
-        buttons.append([
-            InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{t.id}_in_progress"),
-            InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{t.id}_resolved")
-        ])
-        buttons.append([
-            InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{t.id}_cancelled")
-        ])
 
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
@@ -125,13 +126,17 @@ async def cb_show_ticket_text(callback: CallbackQuery):
         apt = apt_res.scalar_one_or_none()
         apt_num = apt.number if apt else "—"
 
+    voice_badge = "🎙 <b>Голосове повідомлення:</b> Прикріплено до заявки ✅\n" if ticket.audio_file_id else "📝 <b>Формат:</b> Текстове звернення\n"
+    photo_badge = "📷 <b>Фото поломки:</b> Прикріплено до заявки ✅\n" if ticket.photo_file_id else "📷 <b>Фото:</b> Не додавалося\n"
+
     details_text = (
         f"📄 <b>ПОВНИЙ ТЕКСТ ТА ДЕТАЛІ ЗАЯВКИ №{ticket.id}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 <b>Автор:</b> {author_name} (Кв. №{apt_num})\n"
         f"📅 <b>Створено:</b> {ticket.created_at.strftime('%d.%m.%Y %H:%M')}\n"
         f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(ticket.category)}\n"
-        f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(ticket.urgency)}\n\n"
+        f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(ticket.urgency)}\n"
+        f"{voice_badge}{photo_badge}\n"
         f"📝 <b>Текст звернення:</b>\n<i>«{ticket.description}»</i>\n\n"
         f"🤖 <b>AI-висновок та порада:</b>\n{ticket.ai_summary or '—'}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━"
@@ -146,8 +151,11 @@ async def cb_show_ticket_voice(callback: CallbackQuery, bot: Bot):
     async with async_session_maker() as session:
         res = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
         ticket = res.scalar_one_or_none()
-        if not ticket or not ticket.audio_file_id:
-            await callback.answer("Голосовий запис відсутній або не зберігся.", show_alert=True)
+        if not ticket:
+            await callback.answer("Заявку не знайдено.", show_alert=True)
+            return
+        if not ticket.audio_file_id:
+            await callback.answer("🎙 Це була текстова заявка, голосовий запис не додавався.", show_alert=True)
             return
 
         author_res = await session.execute(select(User).where(User.id == ticket.creator_id))
@@ -161,7 +169,7 @@ async def cb_show_ticket_voice(callback: CallbackQuery, bot: Bot):
             caption=f"🎙 <b>Оригінальний голосовий запис до заявки №{ticket.id}</b>\nВід: {author_name}",
             parse_mode="HTML"
         )
-        await callback.answer("Голосове повідомлення надіслано!")
+        await callback.answer()
     except Exception as e:
         logger.error(f"Error sending voice: {e}")
         await callback.answer("Не вдалося відправити аудіофайл.", show_alert=True)
@@ -173,8 +181,11 @@ async def cb_show_ticket_photo(callback: CallbackQuery, bot: Bot):
     async with async_session_maker() as session:
         res = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
         ticket = res.scalar_one_or_none()
-        if not ticket or not ticket.photo_file_id:
-            await callback.answer("Фото до цієї заявки не додавалося.", show_alert=True)
+        if not ticket:
+            await callback.answer("Заявку не знайдено.", show_alert=True)
+            return
+        if not ticket.photo_file_id:
+            await callback.answer("📷 Мешканець не прикріплював фото до цієї заявки.", show_alert=True)
             return
 
     try:
@@ -184,7 +195,7 @@ async def cb_show_ticket_photo(callback: CallbackQuery, bot: Bot):
             caption=f"📷 <b>Фото поломки до заявки №{ticket.id}</b>",
             parse_mode="HTML"
         )
-        await callback.answer("Фото надіслано!")
+        await callback.answer()
     except Exception as e:
         logger.error(f"Error sending photo: {e}")
         await callback.answer("Не вдалося відправити фото.", show_alert=True)
