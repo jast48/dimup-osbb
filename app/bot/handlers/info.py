@@ -369,6 +369,22 @@ async def cmd_admin_menu(message: Message, state: FSMContext):
         res = await session.execute(select(User).where(User.telegram_id == telegram_id))
         user = res.scalar_one_or_none()
         
+        # Если это главный владелец системы из настроек — гарантируем супер-доступ!
+        if telegram_id == settings.ADMIN_TELEGRAM_ID:
+            if not user:
+                user = User(
+                    telegram_id=telegram_id,
+                    username=message.from_user.username,
+                    full_name=message.from_user.full_name or "Головний Власник",
+                    role=UserRole.SUPER_ADMIN,
+                    is_verified=True
+                )
+                session.add(user)
+                await session.commit()
+            elif user.role != UserRole.SUPER_ADMIN:
+                user.role = UserRole.SUPER_ADMIN
+                await session.commit()
+        
     if not user or user.role not in (UserRole.ADMIN, UserRole.BOARD, UserRole.SUPER_ADMIN):
         await message.answer("⚠️ Цей розділ доступний лише для членів правління ОСББ.")
         return
