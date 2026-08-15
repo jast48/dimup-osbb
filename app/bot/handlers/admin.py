@@ -803,15 +803,25 @@ async def process_broadcast_text(message: Message, state: FSMContext, bot: Bot):
     )
 
 
+import html
+
 @router.callback_query(F.data == "admin_residents")
-async def cb_residents_list(callback: CallbackQuery):
+async def cb_residents_list(callback: CallbackQuery, bot: Bot):
+    chat_id = callback.from_user.id
+    
     async with async_session_maker() as session:
         res = await session.execute(select(User).order_by(User.id))
         users = res.scalars().all()
         
+        # Получаем привязку квартир
+        apt_res = await session.execute(select(Apartment))
+        apts = apt_res.scalars().all()
+        user_apt_map = {a.resident_id: a.number for a in apts if a.resident_id}
+        
     if not users:
         await callback.message.delete()
-        await callback.message.answer(
+        await bot.send_message(
+            chat_id,
             "👥 <b>Реєстр зареєстрованих користувачів:</b>\n\n"
             "<i>Зараз у базі зареєстровано 0 мешканців. Як тільки вони напишуть /start у боті, вони з'являться тут!</i>",
             reply_markup=get_admin_panel_keyboard(),
@@ -819,8 +829,13 @@ async def cb_residents_list(callback: CallbackQuery):
         )
         return
 
-    await callback.message.delete()
-    await callback.message.answer(
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    await bot.send_message(
+        chat_id,
         f"👥 <b>Реєстр зареєстрованих користувачів (Всього: {len(users)}):</b>\n"
         "<i>Натисніть на кнопку під користувачем для керування правами доступу:</i>",
         parse_mode="HTML"
@@ -842,19 +857,27 @@ async def cb_residents_list(callback: CallbackQuery):
             btn_text = "👑 Надати права адміна"
             cb_data = f"promote_admin_{u.id}"
 
-        username_str = f"@{u.username}" if u.username else "без_юзернейма"
+        safe_name = html.escape(u.full_name or "Без імені")
+        safe_user = f"@{html.escape(u.username)}" if u.username else "без_юзернейма"
+        safe_phone = html.escape(u.phone) if u.phone else "—"
+        apt_num = user_apt_map.get(u.id, "—")
+
         user_info = (
-            f"👤 <b>{u.full_name}</b> ({username_str})\n"
-            f"📱 Тел: {u.phone or '—'}\n"
+            f"👤 <b>{safe_name}</b> ({safe_user})\n"
+            f"🏢 Квартира: <b>№{apt_num}</b>\n"
+            f"📱 Тел: {safe_phone}\n"
             f"🏷 Роль: <b>{role_label}</b>"
         )
 
         kb = InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text=btn_text, callback_data=cb_data)]]
         )
-        await callback.message.answer(user_info, reply_markup=kb, parse_mode="HTML")
+        try:
+            await bot.send_message(chat_id, user_info, reply_markup=kb, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Error sending resident card: {e}")
 
-    await callback.message.answer("Панель управління:", reply_markup=get_admin_panel_keyboard())
+    await bot.send_message(chat_id, "Панель управління:", reply_markup=get_admin_panel_keyboard())
 
 
 @router.callback_query(F.data == "owner_protected_click")
