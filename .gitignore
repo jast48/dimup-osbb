@@ -1,0 +1,23 @@
+# Python & Virtual Environment
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database & Storage
+*.db
+*.sqlite3
+
+# Logs & Temporary files
+*.log
+scratch/
+.system_generated/
+*.zip
+
+# Cloudflared executable
+cloudflared.exe
+
+# IDE configs
+.vscode/
+.idea/
+.DS_Store

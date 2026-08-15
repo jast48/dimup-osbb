@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DimUp — Особистий кабінет ОСББ</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="brand-row">
+            <div class="brand-title">
+                <span>🏢</span> DimUp Smart
+            </div>
+            <div class="badge-apt" id="apt-badge">Кв. №{{ apt.number if apt else '—' }}</div>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <!-- ================= TAB 1: ФІНАНСИ ТА КВИТАНЦІЇ ================= -->
+        <section id="tab-finance" class="tab-content active">
+            <!-- Hero Balance Card -->
+            <div class="hero-card">
+                <div class="hero-label">Поточний баланс квартири</div>
+                <div class="hero-amount">
+                    <span>{{ '%.2f'|format(apt.balance|abs if apt else 0.0) }}</span>
+                    <span class="hero-currency">грн</span>
+                </div>
+                <div>
+                    {% if apt and apt.balance < 0 %}
+                        <span class="hero-status status-negative">🔴 Заборгованість до сплати</span>
+                    {% else %}
+                        <span class="hero-status status-positive">🟢 Оплачено / Без боргів</span>
+                    {% endif %}
+                </div>
+                
+                <button class="btn-pay" onclick="handlePayment()">
+                    💳 Оплатити карткою онлайн
+                </button>
+            </div>
+
+            <!-- Bills History -->
+            <div class="section-title">📄 Останні нарахування</div>
+            <div class="card">
+                {% if bills %}
+                    {% for bill in bills %}
+                    <div class="bill-row">
+                        <div>
+                            <div class="bill-month">Місяць {{ bill.month }}/{{ bill.year }}</div>
+                            <div class="bill-date">Утримання будинку та прибудинкової території</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="bill-price">{{ bill.amount }} грн</div>
+                            <div style="font-size: 11px; color: {{ '#10b981' if bill.is_paid else '#f43f5e' }};">
+                                {{ 'Сплачено ✅' if bill.is_paid else 'Очікує оплати ⏳' }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="color: var(--text-secondary); text-align: center; padding: 12px 0;">
+                        Нарахувань поки немає
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: ГОЛОСУВАННЯ ================= -->
+        <section id="tab-polls" class="tab-content">
+            <div class="section-title">🗳 Активні опитування будинку</div>
+            {% if polls %}
+                {% for p in polls %}
+                <div class="card">
+                    <h3 style="font-size: 15px; margin-bottom: 6px;">{{ p.title }}</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">{{ p.description }}</p>
+                    
+                    {% for opt in p.options %}
+                    <div class="poll-option-item">
+                        <div class="poll-option-header">
+                            <span>{{ opt.text }}</span>
+                            <span style="font-weight: 600;">{{ opt.votes|length }} гол.</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" style="width: {{ [opt.votes|length * 25, 100]|min }}%;"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="card" style="text-align: center; color: var(--text-secondary);">
+                    Активних опитувань наразі немає
+                </div>
+            {% endif %}
+        </section>
+
+        <!-- ================= TAB 3: ДОКУМЕНТИ ================= -->
+        <section id="tab-docs" class="tab-content">
+            <div class="section-title">📑 Офіційні документи ОСББ</div>
+            
+            <a href="#" class="doc-item" onclick="alert('Завантаження Статуту ОСББ...'); return false;">
+                <div class="doc-info">
+                    <div class="doc-icon">📘</div>
+                    <div>
+                        <div class="doc-name">Статут ОСББ (нова редакція)</div>
+                        <div class="doc-size">PDF • 1.4 MB</div>
+                    </div>
+                </div>
+                <div class="doc-download-btn">Переглянути</div>
+            </a>
+
+            <a href="#" class="doc-item" onclick="alert('Завантаження Тарифної сітки...'); return false;">
+                <div class="doc-info">
+                    <div class="doc-icon">📊</div>
+                    <div>
+                        <div class="doc-name">Кошторис та тарифи на 2026 рік</div>
+                        <div class="doc-size">PDF • 850 KB</div>
+                    </div>
+                </div>
+                <div class="doc-download-btn">Переглянути</div>
+            </a>
+
+            <a href="#" class="doc-item" onclick="alert('Завантаження Протоколу зборів...'); return false;">
+                <div class="doc-info">
+                    <div class="doc-icon">📝</div>
+                    <div>
+                        <div class="doc-name">Протокол загальних зборів №14</div>
+                        <div class="doc-size">PDF • 2.1 MB</div>
+                    </div>
+                </div>
+                <div class="doc-download-btn">Переглянути</div>
+            </a>
+
+            <a href="#" class="doc-item" onclick="alert('Завантаження Звіту ревізора...'); return false;">
+                <div class="doc-info">
+                    <div class="doc-icon">💼</div>
+                    <div>
+                        <div class="doc-name">Звіт ревізійної комісії за минулий рік</div>
+                        <div class="doc-size">PDF • 980 KB</div>
+                    </div>
+                </div>
+                <div class="doc-download-btn">Переглянути</div>
+            </a>
+        </section>
+
+        <!-- ================= TAB 4: МОЇ ЗАЯВКИ ================= -->
+        <section id="tab-tickets" class="tab-content">
+            <div class="section-title">🔧 Мої заявки на ремонт</div>
+            {% if tickets %}
+                {% for t in tickets %}
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-weight: 700; font-size: 14px;">Заявка #{{ t.id }}</span>
+                        <span style="font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: rgba(56, 189, 248, 0.2); color: #38bdf8;">
+                            {{ t.status.value }}
+                        </span>
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-primary); margin-bottom: 6px;">{{ t.description }}</div>
+                    {% if t.ai_summary %}
+                    <div style="font-size: 12px; color: var(--text-secondary); font-style: italic;">
+                        💡 AI: {{ t.ai_summary }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="card" style="text-align: center; color: var(--text-secondary);">
+                    У вас немає активних заявок. Ви можете створити нову заявку в меню Telegram-бота!
+                </div>
+            {% endif %}
+        </section>
+
+    </div>
+
+    <!-- Bottom Navigation Tabs -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('tab-finance', this)">
+            <span class="nav-icon">💳</span>
+            <span>Фінанси</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('tab-polls', this)">
+            <span class="nav-icon">🗳</span>
+            <span>Опитування</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('tab-docs', this)">
+            <span class="nav-icon">📑</span>
+            <span>Документи</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('tab-tickets', this)">
+            <span class="nav-icon">🔧</span>
+            <span>Заявки</span>
+        </div>
+    </nav>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

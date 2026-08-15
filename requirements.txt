@@ -1,0 +1,23 @@
+# Core Telegram Bot Framework
+aiogram>=3.15.0
+
+# Web Framework & Server (for Telegram WebApp)
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+jinja2>=3.1.4
+
+# Database & ORM (Async SQLAlchemy)
+SQLAlchemy>=2.0.36
+aiosqlite>=0.20.0
+greenlet>=3.1.1
+
+# AI: Google Gemini
+google-generativeai>=0.8.3
+
+# Configuration & Settings
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.1
+
+# Utilities
+aiofiles>=24.1.0
+requests>=2.32.3
