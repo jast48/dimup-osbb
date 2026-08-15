@@ -22,6 +22,17 @@ from app.bot.handlers.tickets import CATEGORY_NAMES, URGENCY_NAMES
 logger = logging.getLogger(__name__)
 router = Router()
 
+
+async def is_admin_user(telegram_id: int) -> bool:
+    """Проверяет, является ли пользователь администратором или владельцем."""
+    if telegram_id == settings.ADMIN_TELEGRAM_ID:
+        return True
+    async with async_session_maker() as session:
+        res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = res.scalar_one_or_none()
+        return user is not None and user.role in (UserRole.ADMIN, UserRole.BOARD, UserRole.SUPER_ADMIN)
+
+
 # ==========================================
 # 1. ЗАЯВКИ (ДИСПЕТЧЕРСКАЯ)
 # ==========================================
@@ -29,6 +40,9 @@ router = Router()
 @router.callback_query(F.data == "admin_tickets_list")
 async def cb_admin_tickets(callback: CallbackQuery):
     """Список последних заявок для диспетчера"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     async with async_session_maker() as session:
         res = await session.execute(
             select(Ticket).order_by(desc(Ticket.created_at)).limit(10)
@@ -768,6 +782,9 @@ async def cmd_quick_bill(message: Message, bot: Bot):
 
 @router.callback_query(F.data == "admin_broadcast")
 async def cb_start_broadcast(callback: CallbackQuery, state: FSMContext):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     await callback.message.delete()
     await callback.message.answer(
         "📢 <b>Створення масової розсилки</b>\n\n"
@@ -791,7 +808,7 @@ async def process_broadcast_text(message: Message, state: FSMContext, bot: Bot):
         try:
             await bot.send_message(
                 u.telegram_id,
-                f"📢 <b>ОГОЛОШЕННЯ ВІД ПРАВЛІННЯ ОСББ:</b>\n\n{text}",
+                f"📢 <b>ОГОЛОШЕННЯ ВІД ПРАВЛІННЯ ОСББ:</b>\n\n{html.escape(text)}",
                 parse_mode="HTML"
             )
             count += 1
@@ -811,6 +828,9 @@ import html
 @router.callback_query(F.data == "admin_residents")
 async def cb_residents_list(callback: CallbackQuery, bot: Bot):
     chat_id = callback.from_user.id
+    if not await is_admin_user(chat_id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     
     try:
         async with async_session_maker() as session:
@@ -892,6 +912,9 @@ async def cb_owner_protected(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("promote_admin_"))
 async def cb_promote_admin(callback: CallbackQuery, bot: Bot):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     user_id = int(callback.data.split("_")[2])
     
     async with async_session_maker() as session:
@@ -936,6 +959,9 @@ async def cb_promote_admin(callback: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data.startswith("demote_admin_"))
 async def cb_demote_admin(callback: CallbackQuery, bot: Bot):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     user_id = int(callback.data.split("_")[2])
     
     async with async_session_maker() as session:

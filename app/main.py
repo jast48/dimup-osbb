@@ -67,8 +67,7 @@ def create_app() -> FastAPI:
     async def root():
         return {
             "system": "DimUp Smart OSBB",
-            "status": "online",
-            "webapp_url": f"{settings.WEBAPP_URL}?apt_num=1"
+            "status": "online"
         }
 
     return app

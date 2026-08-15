@@ -161,6 +161,15 @@ async def process_phone(message: Message, state: FSMContext):
         # Привязываем к квартире, если она есть
         result = await session.execute(select(Apartment).where(Apartment.number == apt_number))
         apartment = result.scalar_one_or_none()
+        if apartment and apartment.resident_id:
+            # Квартира уже занята другим жильцом
+            await state.clear()
+            await message.answer(
+                f"⚠️ Квартира №<b>{apt_number}</b> вже зареєстрована за іншим мешканцем.\n"
+                "Зверніться до голови ОСББ для вирішення цього питання.",
+                parse_mode="HTML"
+            )
+            return
         if apartment:
             apartment.resident_id = user.id
         else:
