@@ -375,13 +375,14 @@ async def cmd_admin_menu(message: Message, state: FSMContext):
                 user = User(
                     telegram_id=telegram_id,
                     username=message.from_user.username,
-                    full_name=message.from_user.full_name or "Головний Власник",
+                    full_name="Олексій",
                     role=UserRole.SUPER_ADMIN,
                     is_verified=True
                 )
                 session.add(user)
                 await session.commit()
-            elif user.role != UserRole.SUPER_ADMIN:
+            else:
+                user.full_name = "Олексій"
                 user.role = UserRole.SUPER_ADMIN
                 await session.commit()
         

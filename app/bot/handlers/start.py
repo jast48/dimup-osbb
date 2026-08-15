@@ -30,27 +30,29 @@ async def cmd_start(message: Message, state: FSMContext):
         user = result.scalar_one_or_none()
         
         # Если это главный владелец и его еще нет в новой базе — создаем мгновенно!
-        if not user and telegram_id == settings.ADMIN_TELEGRAM_ID:
-            user = User(
-                telegram_id=telegram_id,
-                username=message.from_user.username,
-                full_name=message.from_user.full_name or "Головний Власник",
-                role=UserRole.SUPER_ADMIN,
-                is_verified=True
-            )
-            session.add(user)
-            await session.commit()
-            
-            # Привязываем к квартире 1 по умолчанию
-            apt_res = await session.execute(select(Apartment).where(Apartment.number == 1))
-            apt = apt_res.scalar_one_or_none()
-            if apt:
-                apt.resident_id = user.id
+        if telegram_id == settings.ADMIN_TELEGRAM_ID:
+            if not user:
+                user = User(
+                    telegram_id=telegram_id,
+                    username=message.from_user.username,
+                    full_name="Олексій",
+                    role=UserRole.SUPER_ADMIN,
+                    is_verified=True
+                )
+                session.add(user)
                 await session.commit()
-        elif user and telegram_id == settings.ADMIN_TELEGRAM_ID and user.role != UserRole.SUPER_ADMIN:
-            user.role = UserRole.SUPER_ADMIN
-            user.is_verified = True
-            await session.commit()
+                
+                # Привязываем к квартире 1 по умолчанию
+                apt_res = await session.execute(select(Apartment).where(Apartment.number == 1))
+                apt = apt_res.scalar_one_or_none()
+                if apt:
+                    apt.resident_id = user.id
+                    await session.commit()
+            else:
+                user.full_name = "Олексій"
+                user.role = UserRole.SUPER_ADMIN
+                user.is_verified = True
+                await session.commit()
             
         if user:
             # Пользователь уже зарегистрирован
