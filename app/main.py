@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 import warnings
@@ -57,6 +58,11 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(webapp_router)
 
+    # Автоматическое определение публичного HTTPS URL на Render
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+    if render_url:
+        settings.WEBAPP_URL = f"{render_url.rstrip('/')}/webapp"
+
     @app.get("/")
     async def root():
         return {
@@ -77,8 +83,9 @@ async def run_services():
     logger.info("Initializing database...")
     await init_database()
 
-    # 2. Настраиваем FastAPI сервер
-    config = uvicorn.Config(app=app, host="127.0.0.1", port=8000, log_level="warning")
+    # 2. Настраиваем FastAPI сервер для облака (0.0.0.0 и порт Render)
+    port = int(os.getenv("PORT", 8000))
+    config = uvicorn.Config(app=app, host="0.0.0.0", port=port, log_level="warning")
     server = uvicorn.Server(config)
 
     # 3. Настраиваем Telegram-бота
@@ -90,7 +97,7 @@ async def run_services():
 
         logger.info("=" * 60)
         logger.info(" DimUp Bot & WebApp successfully started!")
-        logger.info(" WebApp available at: http://localhost:8000/webapp")
+        logger.info(f" WebApp URL: {settings.WEBAPP_URL}")
         logger.info("=" * 60)
 
         # Запускаем одновременно веб-сервер и polling бота

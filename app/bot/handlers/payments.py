@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime
-from aiogram import Router, F, Bot
+from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, desc
 from app.db.session import async_session_maker
-from app.db.models import User, Apartment, Bill, UserRole
+from app.db.models import User, Apartment, Bill
 from app.bot.keyboards.keyboards import get_main_menu_keyboard
 
 router = Router()
@@ -80,7 +80,7 @@ async def cmd_pay_bills_menu(event: Message | CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("pay_single_bill_"))
-async def cb_process_single_payment(callback: CallbackQuery, bot: Bot):
+async def cb_process_single_payment(callback: CallbackQuery):
     """Формирование шлюза оплаты Monobank / Apple Pay"""
     bill_id = int(callback.data.split("_")[3])
 
