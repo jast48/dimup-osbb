@@ -354,10 +354,62 @@ async def cmd_profile(message: Message, state: FSMContext):
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Мої заявки (статуси та аудіо)", callback_data="resident_my_tickets")],
             [InlineKeyboardButton(text="📊 Подати показники лічильників", callback_data="meters_start")]
         ]
     )
     await message.answer(profile_text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data == "resident_my_tickets")
+async def cb_resident_my_tickets(callback: CallbackQuery):
+    telegram_id = callback.from_user.id
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("Користувача не знайдено.")
+            return
+
+        tickets_res = await session.execute(
+            select(Ticket).where(Ticket.creator_id == user.id).order_by(desc(Ticket.created_at)).limit(5)
+        )
+        tickets = tickets_res.scalars().all()
+
+    if not tickets:
+        await callback.answer("У вас ще немає створених заявок.", show_alert=True)
+        return
+
+    status_badges = {
+        TicketStatus.NEW: "🆕 Нова (на розгляді)",
+        TicketStatus.IN_PROGRESS: "🛠 В роботі у майстра",
+        TicketStatus.RESOLVED: "✅ Виконано",
+        TicketStatus.CANCELLED: "❌ Відхилено"
+    }
+
+    await callback.message.delete()
+    for t in tickets:
+        text = (
+            f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status)}]\n"
+            f"📅 <b>Дата:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"📝 <b>Текст:</b> {t.description}\n"
+        )
+        if t.ai_summary:
+            text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
+
+        media_row = [
+            InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}")
+        ]
+        if t.audio_file_id:
+            media_row.append(InlineKeyboardButton(text="🎙 Моє голосове", callback_data=f"show_ticket_voice_{t.id}"))
+        if t.photo_file_id:
+            media_row.append(InlineKeyboardButton(text="📷 Моє фото", callback_data=f"show_ticket_photo_{t.id}"))
+
+        kb = InlineKeyboardMarkup(inline_keyboard=[media_row])
+        await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+    await callback.message.answer("Оберіть дію в меню нижче:", reply_markup=get_main_menu_keyboard(user.role))
+    await callback.answer()
 
 
 @router.message(F.text.contains("Панель правління"))

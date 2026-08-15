@@ -12,6 +12,7 @@ from app.bot.keyboards.keyboards import (
     get_ticket_photo_keyboard,
     get_ticket_confirm_keyboard
 )
+from app.config import settings
 from app.services.ai_service import AIService
 
 router = Router()
@@ -178,16 +179,65 @@ async def process_ticket_confirmation(callback: CallbackQuery, state: FSMContext
         session.add(ticket)
         await session.commit()
         ticket_id = ticket.id
+        apt_num = apt.number if apt else "—"
+
+    # Мгновенное оповещение председателя / диспетчера
+    admin_media_row = [
+        InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{ticket_id}")
+    ]
+    if data.get("audio_file_id"):
+        admin_media_row.append(InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{ticket_id}"))
+    if data.get("photo_file_id"):
+        admin_media_row.append(InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{ticket_id}"))
+
+    admin_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            admin_media_row,
+            [
+                InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{ticket_id}_in_progress"),
+                InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{ticket_id}_resolved")
+            ]
+        ]
+    )
+
+    admin_notify_text = (
+        f"🚨 <b>НОВА ЗАЯВКА №{ticket_id} ВІД МЕШКАНЦЯ!</b>\n\n"
+        f"👤 <b>Мешканець:</b> {user.full_name} (Кв. №{apt_num})\n"
+        f"📱 <b>Тел:</b> {user.phone or '—'}\n"
+        f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(ticket.category)}\n"
+        f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(ticket.urgency)}\n\n"
+        f"📝 <b>Текст:</b> {ticket.description}\n"
+        f"💡 <b>AI порада:</b> <i>{ticket.ai_summary or '—'}</i>"
+    )
+    try:
+        await bot.send_message(
+            settings.ADMIN_TELEGRAM_ID,
+            admin_notify_text,
+            reply_markup=admin_kb,
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
 
     await state.clear()
     await callback.message.delete()
     
+    user_media_row = [
+        InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{ticket_id}")
+    ]
+    if data.get("audio_file_id"):
+        user_media_row.append(InlineKeyboardButton(text="🎙 Моє голосове", callback_data=f"show_ticket_voice_{ticket_id}"))
+    if data.get("photo_file_id"):
+        user_media_row.append(InlineKeyboardButton(text="📷 Моє фото", callback_data=f"show_ticket_photo_{ticket_id}"))
+
+    user_kb = InlineKeyboardMarkup(inline_keyboard=[user_media_row])
+
     success_text = (
         f"✅ <b>Заявку №{ticket_id} успішно зареєстровано!</b>\n\n"
         f"Вона передана черговому майстру та голові ОСББ.\n"
-        f"Ви отримуватимете автоматичні сповіщення при зміні статусу виконання робіт."
+        f"Ви отримуватимете автоматичні сповіщення при зміні її статусу."
     )
-    await callback.message.answer(success_text, reply_markup=get_main_menu_keyboard(user.role), parse_mode="HTML")
+    await callback.message.answer(success_text, reply_markup=user_kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "cancel_ticket")

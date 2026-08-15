@@ -83,20 +83,111 @@ async def cb_admin_tickets(callback: CallbackQuery):
         if t.ai_summary:
             text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
 
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{t.id}_in_progress"),
-                    InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{t.id}_resolved")
-                ],
-                [
-                    InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{t.id}_cancelled")
-                ]
-            ]
-        )
+        buttons = []
+        media_row = [
+            InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}")
+        ]
+        if t.audio_file_id:
+            media_row.append(InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{t.id}"))
+        if t.photo_file_id:
+            media_row.append(InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}"))
+        buttons.append(media_row)
+
+        buttons.append([
+            InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{t.id}_in_progress"),
+            InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{t.id}_resolved")
+        ])
+        buttons.append([
+            InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{t.id}_cancelled")
+        ])
+
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
         
     await callback.message.answer("Керування заявками завершено.", reply_markup=get_admin_panel_keyboard())
+
+
+@router.callback_query(F.data.startswith("show_ticket_text_"))
+async def cb_show_ticket_text(callback: CallbackQuery):
+    ticket_id = int(callback.data.split("_")[3])
+    async with async_session_maker() as session:
+        res = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+        ticket = res.scalar_one_or_none()
+        if not ticket:
+            await callback.answer("Заявку не знайдено.", show_alert=True)
+            return
+            
+        author_res = await session.execute(select(User).where(User.id == ticket.creator_id))
+        author = author_res.scalar_one_or_none()
+        author_name = author.full_name if author else "Мешканець"
+        
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == ticket.apartment_id))
+        apt = apt_res.scalar_one_or_none()
+        apt_num = apt.number if apt else "—"
+
+    details_text = (
+        f"📄 <b>ПОВНИЙ ТЕКСТ ТА ДЕТАЛІ ЗАЯВКИ №{ticket.id}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Автор:</b> {author_name} (Кв. №{apt_num})\n"
+        f"📅 <b>Створено:</b> {ticket.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(ticket.category)}\n"
+        f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(ticket.urgency)}\n\n"
+        f"📝 <b>Текст звернення:</b>\n<i>«{ticket.description}»</i>\n\n"
+        f"🤖 <b>AI-висновок та порада:</b>\n{ticket.ai_summary or '—'}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    await callback.message.answer(details_text, parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("show_ticket_voice_"))
+async def cb_show_ticket_voice(callback: CallbackQuery, bot: Bot):
+    ticket_id = int(callback.data.split("_")[3])
+    async with async_session_maker() as session:
+        res = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+        ticket = res.scalar_one_or_none()
+        if not ticket or not ticket.audio_file_id:
+            await callback.answer("Голосовий запис відсутній або не зберігся.", show_alert=True)
+            return
+
+        author_res = await session.execute(select(User).where(User.id == ticket.creator_id))
+        author = author_res.scalar_one_or_none()
+        author_name = author.full_name if author else "Мешканця"
+
+    try:
+        await bot.send_voice(
+            chat_id=callback.from_user.id,
+            voice=ticket.audio_file_id,
+            caption=f"🎙 <b>Оригінальний голосовий запис до заявки №{ticket.id}</b>\nВід: {author_name}",
+            parse_mode="HTML"
+        )
+        await callback.answer("Голосове повідомлення надіслано!")
+    except Exception as e:
+        logger.error(f"Error sending voice: {e}")
+        await callback.answer("Не вдалося відправити аудіофайл.", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("show_ticket_photo_"))
+async def cb_show_ticket_photo(callback: CallbackQuery, bot: Bot):
+    ticket_id = int(callback.data.split("_")[3])
+    async with async_session_maker() as session:
+        res = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+        ticket = res.scalar_one_or_none()
+        if not ticket or not ticket.photo_file_id:
+            await callback.answer("Фото до цієї заявки не додавалося.", show_alert=True)
+            return
+
+    try:
+        await bot.send_photo(
+            chat_id=callback.from_user.id,
+            photo=ticket.photo_file_id,
+            caption=f"📷 <b>Фото поломки до заявки №{ticket.id}</b>",
+            parse_mode="HTML"
+        )
+        await callback.answer("Фото надіслано!")
+    except Exception as e:
+        logger.error(f"Error sending photo: {e}")
+        await callback.answer("Не вдалося відправити фото.", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("set_status_"))
