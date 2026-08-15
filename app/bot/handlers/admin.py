@@ -518,6 +518,7 @@ async def process_edit_poll_title(message: Message, state: FSMContext):
         f"Нова тема: <b>«{title}»</b>\n\n"
         f"Введіть <b>новий опис</b> (або введіть «-» щоб залишити без опису):",
         parse_mode="HTML"
+    )
     await state.set_state(AdminPollEditState.waiting_for_description)
 
 
@@ -899,86 +900,7 @@ async def cmd_quick_bill(message: Message, bot: Bot):
         except Exception:
             pass
 
-    await message.answer(f"✅ Нараховано <b>{amount:.2f} грн</b> («{description}») для квартири №<b>{apt_num}</b>!", parse_mode="HTML")b>{ch_amount:.2f} грн</b>\n"
-                f"📌 <b>Призначення:</b> {purpose}\n\n"
-                f"<i>Переглянути квитанцію можна у розділі «📱 Кабінет».</i>",
-                parse_mode="HTML"
-            )
-            sent_count += 1
-        except Exception:
-            pass
-
-    await loading_msg.delete()
-    await state.clear()
-
-    summary_text = (
-        f"🎉 <b>Масове нарахування успішно виконано!</b>\n\n"
-        f"📌 <b>Призначення:</b> {purpose}\n"
-        f"🏢 <b>Оброблено квартир:</b> {len(apartments)}\n"
-        f"💰 <b>Загальна сума нарахувань:</b> {total_billed:,.2f} грн\n"
-        f"📨 <b>Повідомлень надіслано мешканцям:</b> {sent_count}\n"
-    )
-    await message.answer(summary_text, reply_markup=get_main_menu_keyboard(UserRole.ADMIN), parse_mode="HTML")
-
-
-@router.message(Command("bill"))
-async def cmd_quick_bill(message: Message, bot: Bot):
-    telegram_id = message.from_user.id
-    
-    async with async_session_maker() as session:
-        caller_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
-        caller = caller_res.scalar_one_or_none()
-        if not caller or caller.role not in (UserRole.ADMIN, UserRole.BOARD):
-            await message.answer("⚠️ Ця команда доступна лише правлінню ОСББ.")
-            return
-
-        parts = message.text.split()
-        if len(parts) < 3:
-            await message.answer("ℹ️ Використання: <code>/bill <номер_квартири> <сума></code>\nНаприклад: <code>/bill 5 850</code>", parse_mode="HTML")
-            return
-
-        try:
-            apt_num = int(parts[1])
-            amount = float(parts[2].replace(",", "."))
-        except ValueError:
-            await message.answer("⚠️ Некоректні дані. Приклад: <code>/bill 5 850</code>", parse_mode="HTML")
-            return
-
-        apt_res = await session.execute(select(Apartment).where(Apartment.number == apt_num))
-        apt = apt_res.scalar_one_or_none()
-        if not apt:
-            await message.answer(f"⚠️ Квартиру №{apt_num} не знайдено.")
-            return
-
-        now = datetime.now()
-        new_bill = Bill(
-            apartment_id=apt.id,
-            month=now.month,
-            year=now.year,
-            amount=amount,
-            is_paid=False
-        )
-        session.add(new_bill)
-        apt.balance -= amount
-        await session.commit()
-
-        resident_res = await session.execute(select(User).where(User.id == apt.resident_id))
-        resident = resident_res.scalar_one_or_none()
-
-    if resident:
-        try:
-            await bot.send_message(
-                resident.telegram_id,
-                f"🔔 <b>НОВЕ НАРАХУВАННЯ ЗА КОМУНАЛЬНІ ПОСЛУГИ</b>\n\n"
-                f"Шановний(а) <b>{resident.full_name}</b>!\n"
-                f"Для квартири №<b>{apt_num}</b> сформовано рахунок: <b>{amount:.2f} грн</b>.\n"
-                f"<i>Переглянути квитанцію можна у «📱 Кабінет».</i>",
-                parse_mode="HTML"
-            )
-        except Exception:
-            pass
-
-    await message.answer(f"✅ Нараховано <b>{amount:.2f} грн</b> для квартири №<b>{apt_num}</b>!", parse_mode="HTML")
+    await message.answer(f"✅ Нараховано <b>{amount:.2f} грн</b> («{description}») для квартири №<b>{apt_num}</b>!", parse_mode="HTML")
 
 
 # ==========================================
