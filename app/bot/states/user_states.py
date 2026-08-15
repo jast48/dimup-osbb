@@ -41,6 +41,7 @@ class AdminPollEditState(StatesGroup):
 class AdminBillState(StatesGroup):
     """Состояние выставления счета для одной квартиры"""
     waiting_for_apt_number = State()
+    waiting_for_description = State()
     waiting_for_amount = State()
 
 class AdminSplitBillState(StatesGroup):

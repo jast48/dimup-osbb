@@ -51,8 +51,8 @@
                     {% for bill in bills %}
                     <div class="bill-row">
                         <div>
-                            <div class="bill-month">Місяць {{ bill.month }}/{{ bill.year }}</div>
-                            <div class="bill-date">Утримання будинку та прибудинкової території</div>
+                            <div class="bill-month">{{ bill.description if bill.description else 'Утримання будинку' }}</div>
+                            <div class="bill-date">Місяць {{ bill.month }}/{{ bill.year }}</div>
                         </div>
                         <div style="text-align: right;">
                             <div class="bill-price">{{ bill.amount }} грн</div>

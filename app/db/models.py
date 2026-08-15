@@ -218,6 +218,7 @@ class Bill(Base):
     month: Mapped[int] = mapped_column(nullable=False)
     year: Mapped[int] = mapped_column(nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(255), default="Утримання будинку та прибудинкової території", nullable=True)
     is_paid: Mapped[bool] = mapped_column(Boolean, default=False)
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     payment_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True) # Monobank, Apple Pay, Google Pay, Card

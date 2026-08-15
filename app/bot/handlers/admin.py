@@ -427,7 +427,6 @@ async def process_edit_poll_title(message: Message, state: FSMContext):
         f"Нова тема: <b>«{title}»</b>\n\n"
         f"Введіть <b>новий опис</b> (або введіть «-» щоб залишити без опису):",
         parse_mode="HTML"
-    )
     await state.set_state(AdminPollEditState.waiting_for_description)
 
 
@@ -465,6 +464,9 @@ async def process_edit_poll_desc(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "admin_create_bill")
 async def cb_choose_bill_mode(callback: CallbackQuery):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     await callback.message.delete()
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -489,6 +491,9 @@ async def cb_choose_bill_mode(callback: CallbackQuery):
 
 @router.callback_query(F.data == "bill_mode_single")
 async def cb_start_single_bill(callback: CallbackQuery, state: FSMContext):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     await callback.message.delete()
     await callback.message.answer(
         "👤 <b>Рахунок для однієї квартири</b>\n\n"
@@ -517,6 +522,23 @@ async def process_bill_apt(message: Message, state: FSMContext):
     await state.update_data(bill_apt_number=apt_num)
     await message.answer(
         f"Квартира №<b>{apt_num}</b> знайдена.\n\n"
+        f"📝 Тепер введіть <b>призначення платежу (за що рахунок)</b>:\n"
+        f"<i>(Наприклад: «Утримання будинку за серпень», «Ремонт покрівлі», «Цільовий внесок на генератор» або «Опалення»)</i>",
+        parse_mode="HTML"
+    )
+    await state.set_state(AdminBillState.waiting_for_description)
+
+
+@router.message(AdminBillState.waiting_for_description, F.text)
+async def process_bill_description(message: Message, state: FSMContext):
+    description = message.text.strip()
+    if len(description) < 2:
+        await message.answer("⚠️ Будь ласка, введіть зрозумілий опис (призначення платежу):")
+        return
+
+    await state.update_data(bill_description=description)
+    await message.answer(
+        f"Призначення: <b>«{description}»</b>\n\n"
         f"Введіть <b>суму нарахування у гривнях</b> (наприклад: <code>850</code> або <code>1250.50</code>):",
         parse_mode="HTML"
     )
@@ -536,6 +558,7 @@ async def process_bill_amount(message: Message, state: FSMContext, bot: Bot):
 
     data = await state.get_data()
     apt_num = data.get("bill_apt_number")
+    description = data.get("bill_description") or "Утримання будинку та прибудинкової території"
     now = datetime.now()
 
     async with async_session_maker() as session:
@@ -547,6 +570,7 @@ async def process_bill_amount(message: Message, state: FSMContext, bot: Bot):
             month=now.month,
             year=now.year,
             amount=amount,
+            description=description,
             is_paid=False
         )
         session.add(new_bill)
@@ -562,7 +586,8 @@ async def process_bill_amount(message: Message, state: FSMContext, bot: Bot):
                 resident.telegram_id,
                 f"🔔 <b>НОВЕ НАРАХУВАННЯ ЗА КОМУНАЛЬНІ ПОСЛУГИ</b>\n\n"
                 f"Шановний(а) <b>{resident.full_name}</b>!\n"
-                f"Для квартири №<b>{apt_num}</b> сформовано рахунок: <b>{amount:.2f} грн</b>.\n\n"
+                f"Для квартири №<b>{apt_num}</b> сформовано рахунок: <b>{amount:.2f} грн</b>.\n"
+                f"📌 <b>Призначення:</b> {description}\n\n"
                 f"<i>Деталі та квитанція доступні у розділі «📱 Кабінет».</i>",
                 parse_mode="HTML"
             )
@@ -573,6 +598,7 @@ async def process_bill_amount(message: Message, state: FSMContext, bot: Bot):
     await message.answer(
         f"✅ <b>Рахунок успішно виставлено!</b>\n\n"
         f"🏢 <b>Квартира:</b> №{apt_num}\n"
+        f"📌 <b>Призначення:</b> {description}\n"
         f"💰 <b>Сума:</b> {amount:.2f} грн\n"
         f"🔔 <b>Сповіщення:</b> {'Надіслано мешканцю в Telegram ✅' if resident else 'Мешканець ще не зареєстрований'}",
         reply_markup=get_main_menu_keyboard(UserRole.ADMIN),
@@ -582,10 +608,14 @@ async def process_bill_amount(message: Message, state: FSMContext, bot: Bot):
 
 @router.callback_query(F.data == "bill_mode_split_all")
 async def cb_start_split_bill(callback: CallbackQuery, state: FSMContext):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     await callback.message.delete()
     await callback.message.answer(
         "🏢 <b>Масове нарахування на ВСІ квартири</b>\n\n"
-        "Введіть <b>призначення платежу</b> (наприклад: <i>Утримання будинку за серпень</i> або <i>Заміна насосу</i>):",
+        "Введіть <b>призначення платежу (за що рахунок)</b>:\n"
+        "<i>(Наприклад: «Утримання будинку за серпень», «Заміна насосу», «Цільовий внесок на відеонагляд»)</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -620,6 +650,9 @@ async def process_split_purpose(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("split_type_"))
 async def process_split_type(callback: CallbackQuery, state: FSMContext):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
     split_type = callback.data.replace("split_type_", "")
     await state.update_data(split_type=split_type)
     await callback.message.delete()
@@ -645,7 +678,7 @@ async def process_split_amount(message: Message, state: FSMContext, bot: Bot):
         return
 
     data = await state.get_data()
-    purpose = data.get("purpose", "Нарахування")
+    purpose = data.get("purpose", "Утримання будинку та прибудинкової території")
     split_type = data.get("split_type", "equal")
     now = datetime.now()
 
@@ -674,6 +707,7 @@ async def process_split_amount(message: Message, state: FSMContext, bot: Bot):
                 month=now.month,
                 year=now.year,
                 amount=charge,
+                description=purpose,
                 is_paid=False
             )
             bills_to_create.append(bill)
@@ -695,6 +729,86 @@ async def process_split_amount(message: Message, state: FSMContext, bot: Bot):
                 f"🔔 <b>НОВЕ НАРАХУВАННЯ ПО БУДИНКУ</b>\n\n"
                 f"Шановний(а) <b>{name}</b>!\n"
                 f"Для квартири №<b>{apt_n}</b> сформовано рахунок: <b>{ch_amount:.2f} грн</b>\n"
+                f"📌 <b>Призначення:</b> {purpose}\n\n"
+                f"<i>Переглянути квитанцію можна у розділі «📱 Кабінет».</i>",
+                parse_mode="HTML"
+            )
+            sent_count += 1
+        except Exception:
+            pass
+
+    await loading_msg.delete()
+    await state.clear()
+
+    summary_text = (
+        f"🎉 <b>Масове нарахування успішно виконано!</b>\n\n"
+        f"📌 <b>Призначення:</b> {purpose}\n"
+        f"🏢 <b>Оброблено квартир:</b> {len(apartments)}\n"
+        f"💰 <b>Загальна сума нарахувань:</b> {total_billed:,.2f} грн\n"
+        f"📨 <b>Повідомлень надіслано мешканцям:</b> {sent_count}\n"
+    )
+    await message.answer(summary_text, reply_markup=get_main_menu_keyboard(UserRole.ADMIN), parse_mode="HTML")
+
+
+@router.message(Command("bill"))
+async def cmd_quick_bill(message: Message, bot: Bot):
+    telegram_id = message.from_user.id
+    if not await is_admin_user(telegram_id):
+        await message.answer("⚠️ Ця команда доступна лише правлінню ОСББ.")
+        return
+    
+    async with async_session_maker() as session:
+        parts = message.text.split(maxsplit=3)
+        if len(parts) < 3:
+            await message.answer("ℹ️ Використання: <code>/bill <номер_квартири> <сума> [опис]</code>\nНаприклад: <code>/bill 5 850 Ремонт ліфта</code>", parse_mode="HTML")
+            return
+
+        try:
+            apt_num = int(parts[1])
+            amount = float(parts[2].replace(",", "."))
+        except ValueError:
+            await message.answer("⚠️ Некоректні дані. Приклад: <code>/bill 5 850 Ремонт ліфта</code>", parse_mode="HTML")
+            return
+
+        description = parts[3].strip() if len(parts) >= 4 else "Утримання будинку та прибудинкової території"
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.number == apt_num))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await message.answer(f"⚠️ Квартиру №{apt_num} не знайдено.")
+            return
+
+        now = datetime.now()
+        new_bill = Bill(
+            apartment_id=apt.id,
+            month=now.month,
+            year=now.year,
+            amount=amount,
+            description=description,
+            is_paid=False
+        )
+        session.add(new_bill)
+        apt.balance -= amount
+        await session.commit()
+
+        resident_res = await session.execute(select(User).where(User.id == apt.resident_id))
+        resident = resident_res.scalar_one_or_none()
+
+    if resident:
+        try:
+            await bot.send_message(
+                resident.telegram_id,
+                f"🔔 <b>НОВЕ НАРАХУВАННЯ ЗА КОМУНАЛЬНІ ПОСЛУГИ</b>\n\n"
+                f"Шановний(а) <b>{resident.full_name}</b>!\n"
+                f"Для квартири №<b>{apt_num}</b> сформовано рахунок: <b>{amount:.2f} грн</b>.\n"
+                f"📌 <b>Призначення:</b> {description}\n\n"
+                f"<i>Переглянути квитанцію можна у «📱 Кабінет».</i>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+    await message.answer(f"✅ Нараховано <b>{amount:.2f} грн</b> («{description}») для квартири №<b>{apt_num}</b>!", parse_mode="HTML")b>{ch_amount:.2f} грн</b>\n"
                 f"📌 <b>Призначення:</b> {purpose}\n\n"
                 f"<i>Переглянути квитанцію можна у розділі «📱 Кабінет».</i>",
                 parse_mode="HTML"

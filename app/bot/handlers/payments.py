@@ -60,10 +60,11 @@ async def cmd_pay_bills_menu(event: Message | CallbackQuery, state: FSMContext):
 
     buttons = []
     for b in unpaid_bills:
-        text += f"• Рахунок за {b.month}/{b.year}: <b>{b.amount:.2f} грн</b>\n"
+        desc_label = b.description or "Утримання будинку"
+        text += f"• <b>{desc_label}</b> ({b.month}/{b.year}): <b>{b.amount:.2f} грн</b>\n"
         buttons.append([
             InlineKeyboardButton(
-                text=f"🟢 Сплатити {b.amount:.2f} грн ({b.month}/{b.year})",
+                text=f"🟢 Сплатити {b.amount:.2f} грн — {desc_label[:20]}",
                 callback_data=f"pay_single_bill_{b.id}"
             )
         ])
@@ -108,9 +109,10 @@ async def cb_process_single_payment(callback: CallbackQuery):
         ]
     )
 
+    desc_label = bill.description or "Утримання будинку та прибудинкової території"
     text = (
         f"🔒 <b>Безпечна платіжна сесія DimUp Pay</b>\n\n"
-        f"🏢 <b>Призначення:</b> Утримання будинку за {bill.month}/{bill.year}\n"
+        f"📌 <b>Призначення:</b> {desc_label} ({bill.month}/{bill.year})\n"
         f"🏢 <b>Квартира:</b> №{apt.number}\n"
         f"💰 <b>Сума до сплати:</b> <b>{bill.amount:.2f} грн</b>\n\n"
         f"Оберіть спосіб оплати нижче (комісія 0%):"
@@ -145,6 +147,7 @@ async def cb_confirm_payment(callback: CallbackQuery):
         await session.commit()
         apt_num = apt.number
         new_balance = apt.balance
+        desc_label = bill.description or "Внесок на утримання будинку"
 
     receipt_text = (
         f"🧾 <b>ЕЛЕКТРОННА КВИТАНЦІЯ ПРО ОПЛАТУ</b>\n"
@@ -154,7 +157,7 @@ async def cb_confirm_payment(callback: CallbackQuery):
         f"📅 <b>Дата та час:</b> {now.strftime('%d.%m.%Y %H:%M:%S')}\n"
         f"🏢 <b>Квартира:</b> №{apt_num}\n"
         f"💳 <b>Метод оплати:</b> Monobank / Apple Pay\n"
-        f"📌 <b>Призначення:</b> Внесок на утримання будинку ({bill.month}/{bill.year})\n"
+        f"📌 <b>Призначення:</b> {desc_label} ({bill.month}/{bill.year})\n"
         f"💰 <b>Сплачена сума:</b> <b>{bill.amount:.2f} грн</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📊 <b>Оновлений баланс:</b> {new_balance:.2f} грн (Заборгованість погашена 🟢)\n\n"

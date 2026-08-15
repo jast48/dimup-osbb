@@ -22,13 +22,14 @@ async def init_database():
         # Создаем все таблицы
         await conn.run_sync(Base.metadata.create_all)
         
-        # Безопасное добавление новых колонок для SQLite
+        # Безопасное добавление новых колонок
         migration_statements = [
             "ALTER TABLE tickets ADD COLUMN audio_file_id VARCHAR(255)",
             "ALTER TABLE tickets ADD COLUMN rating INTEGER",
             "ALTER TABLE tickets ADD COLUMN review TEXT",
             "ALTER TABLE bills ADD COLUMN payment_method VARCHAR(50)",
-            "ALTER TABLE bills ADD COLUMN transaction_id VARCHAR(100)"
+            "ALTER TABLE bills ADD COLUMN transaction_id VARCHAR(100)",
+            "ALTER TABLE bills ADD COLUMN description VARCHAR(255)"
         ]
         for col_def in migration_statements:
             try:
