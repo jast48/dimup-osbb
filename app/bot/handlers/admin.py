@@ -39,27 +39,39 @@ async def is_admin_user(telegram_id: int) -> bool:
 
 @router.callback_query(F.data == "admin_tickets_list")
 async def cb_admin_tickets(callback: CallbackQuery):
-    """Список последних заявок для диспетчера"""
+    """Список активних заявок для диспетчера (Нові та В роботі)"""
     if not await is_admin_user(callback.from_user.id):
         await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
         return
     async with async_session_maker() as session:
         res = await session.execute(
-            select(Ticket).order_by(desc(Ticket.created_at)).limit(10)
+            select(Ticket).where(
+                Ticket.status.in_([TicketStatus.NEW, TicketStatus.IN_PROGRESS])
+            ).order_by(desc(Ticket.created_at)).limit(15)
         )
         tickets = res.scalars().all()
         
     if not tickets:
-        await callback.answer("Заявок ще немає.")
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📦 Переглянути архів завершених заявок", callback_data="admin_tickets_archive")],
+                [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+            ]
+        )
+        await callback.message.edit_text(
+            "🎉 <b>Усі заявки опрацьовано!</b>\n\n"
+            "Наразі немає активних або невиконаних заявок.\n"
+            "Всі попередні заявки успішно переміщено в архів.",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
         return
         
     await callback.message.delete()
     for t in tickets:
         status_badges = {
             TicketStatus.NEW: "🆕 Нова",
-            TicketStatus.IN_PROGRESS: "🛠 В роботі",
-            TicketStatus.RESOLVED: "✅ Виконано",
-            TicketStatus.CANCELLED: "❌ Відхилено"
+            TicketStatus.IN_PROGRESS: "🛠 В роботі"
         }
         
         async with async_session_maker() as session:
@@ -76,7 +88,7 @@ async def cb_admin_tickets(callback: CallbackQuery):
         photo_status = "✅ Є фото" if t.photo_file_id else "❌ Немає"
 
         text = (
-            f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status)}]\n"
+            f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status, '🛠 В роботі')}]\n"
             f"👤 <b>Мешканець:</b> {author_name} (Кв. №{apt_num})\n"
             f"📞 <b>Тел:</b> {author_phone}\n"
             f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(t.category)}\n"
@@ -105,7 +117,13 @@ async def cb_admin_tickets(callback: CallbackQuery):
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
         
-    await callback.message.answer("Керування заявками завершено.", reply_markup=get_admin_panel_keyboard())
+    footer_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📦 Переглянути архів завершених заявок", callback_data="admin_tickets_archive")],
+            [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+        ]
+    )
+    await callback.message.answer("Активні заявки будинку:", reply_markup=footer_kb)
 
 
 @router.callback_query(F.data.startswith("show_ticket_text_"))
@@ -203,6 +221,10 @@ async def cb_show_ticket_photo(callback: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data.startswith("set_status_"))
 async def cb_change_status(callback: CallbackQuery, bot: Bot):
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
     parts = callback.data.split("_")
     ticket_id = int(parts[2])
     status_str = "_".join(parts[3:])
@@ -255,7 +277,100 @@ async def cb_change_status(callback: CallbackQuery, bot: Bot):
                         pass
 
     await callback.answer(f"Статус заявки №{ticket_id} змінено!")
-    await callback.message.edit_reply_markup(reply_markup=None)
+    
+    if new_status == TicketStatus.RESOLVED:
+        await callback.message.edit_text(
+            f"✅ <b>Заявку №{ticket_id} успішно виконано та переміщено в архів! 📦</b>\n\n"
+            f"<i>Мешканцю надіслано запит на оцінку якості робіт (1-5 ⭐).</i>",
+            parse_mode="HTML"
+        )
+    elif new_status == TicketStatus.CANCELLED:
+        await callback.message.edit_text(
+            f"❌ <b>Заявку №{ticket_id} відхилено та переміщено в архів! 📦</b>",
+            parse_mode="HTML"
+        )
+    elif new_status == TicketStatus.IN_PROGRESS:
+        # Обновляем клавиатуру — оставляем только кнопки завершения/отклонения
+        in_progress_kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{ticket_id}"),
+                    InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{ticket_id}"),
+                    InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{ticket_id}")
+                ],
+                [
+                    InlineKeyboardButton(text="✅ Позначити як Виконано", callback_data=f"set_status_{ticket_id}_resolved"),
+                    InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{ticket_id}_cancelled")
+                ]
+            ]
+        )
+        try:
+            await callback.message.edit_reply_markup(reply_markup=in_progress_kb)
+        except Exception:
+            pass
+
+
+@router.callback_query(F.data == "admin_tickets_archive")
+async def cb_admin_tickets_archive(callback: CallbackQuery):
+    """Архив выполненных и отклоненных заявок"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    async with async_session_maker() as session:
+        res = await session.execute(
+            select(Ticket).where(
+                Ticket.status.in_([TicketStatus.RESOLVED, TicketStatus.CANCELLED])
+            ).order_by(desc(Ticket.updated_at)).limit(15)
+        )
+        archived_tickets = res.scalars().all()
+
+    if not archived_tickets:
+        await callback.answer("Архів завершених заявок порожній.", show_alert=True)
+        return
+
+    await callback.message.delete()
+    for t in archived_tickets:
+        status_label = "✅ Виконано" if t.status == TicketStatus.RESOLVED else "❌ Відхилено"
+        rating_str = f" | Оцінка: {'⭐' * t.rating}" if t.rating else ""
+
+        async with async_session_maker() as session:
+            author_res = await session.execute(select(User).where(User.id == t.creator_id))
+            author = author_res.scalar_one_or_none()
+            author_name = author.full_name if author else "Мешканець"
+            
+            apt_res = await session.execute(select(Apartment).where(Apartment.id == t.apartment_id))
+            apt = apt_res.scalar_one_or_none()
+            apt_num = apt.number if apt else "—"
+
+        voice_status = "✅ Є аудіо" if t.audio_file_id else "📝 Текст"
+        photo_status = "✅ Є фото" if t.photo_file_id else "❌ Немає"
+
+        text = (
+            f"📦 <b>Архівна заявка №{t.id}</b> [{status_label}{rating_str}]\n"
+            f"👤 <b>Мешканець:</b> {author_name} (Кв. №{apt_num})\n"
+            f"📅 <b>Створено:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}\n\n"
+            f"📝 <b>Опис:</b> {t.description}\n"
+        )
+
+        buttons = [
+            [
+                InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}"),
+                InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{t.id}"),
+                InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}")
+            ]
+        ]
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+        await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+    back_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🛠 До активних заявок", callback_data="admin_tickets_list")],
+            [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+        ]
+    )
+    await callback.message.answer("Кінець архіву заявок:", reply_markup=back_kb)
 
 
 # ==========================================

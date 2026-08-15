@@ -74,16 +74,19 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📋 Заявки", callback_data="admin_tickets_list"),
-                InlineKeyboardButton(text="💰 Виставити рахунок", callback_data="admin_create_bill")
+                InlineKeyboardButton(text="🛠 Активні заявки", callback_data="admin_tickets_list"),
+                InlineKeyboardButton(text="📦 Архів заявок", callback_data="admin_tickets_archive")
             ],
             [
-                InlineKeyboardButton(text="📢 Розсилка", callback_data="admin_broadcast"),
-                InlineKeyboardButton(text="🗳 Опитування", callback_data="admin_new_poll")
+                InlineKeyboardButton(text="💰 Виставити рахунок", callback_data="admin_create_bill"),
+                InlineKeyboardButton(text="📢 Розсилка", callback_data="admin_broadcast")
             ],
             [
-                InlineKeyboardButton(text="👥 Мешканці", callback_data="admin_residents"),
-                InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back_main")
+                InlineKeyboardButton(text="🗳 Опитування", callback_data="admin_new_poll"),
+                InlineKeyboardButton(text="👥 Мешканці", callback_data="admin_residents")
+            ],
+            [
+                InlineKeyboardButton(text="🔙 Назад до меню", callback_data="admin_back_main")
             ]
         ]
     )
