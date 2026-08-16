@@ -22,20 +22,21 @@ async def init_database():
         # Создаем все таблицы
         await conn.run_sync(Base.metadata.create_all)
         
-        # Безопасное добавление новых колонок
-        migration_statements = [
-            "ALTER TABLE tickets ADD COLUMN audio_file_id VARCHAR(255)",
-            "ALTER TABLE tickets ADD COLUMN rating INTEGER",
-            "ALTER TABLE tickets ADD COLUMN review TEXT",
-            "ALTER TABLE bills ADD COLUMN payment_method VARCHAR(50)",
-            "ALTER TABLE bills ADD COLUMN transaction_id VARCHAR(100)",
-            "ALTER TABLE bills ADD COLUMN description VARCHAR(255)"
-        ]
-        for col_def in migration_statements:
-            try:
+    # Безопасное добавление новых колонок (каждая миграция выполняется в отдельной транзакции с IF NOT EXISTS)
+    migration_statements = [
+        "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS audio_file_id VARCHAR(255)",
+        "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS rating INTEGER",
+        "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review TEXT",
+        "ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)",
+        "ALTER TABLE bills ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(100)",
+        "ALTER TABLE bills ADD COLUMN IF NOT EXISTS description VARCHAR(255)"
+    ]
+    for col_def in migration_statements:
+        try:
+            async with engine.begin() as conn:
                 await conn.execute(text(col_def))
-            except Exception:
-                pass # Колонка уже существует
+        except Exception as e:
+            logger.debug("Migration notice: %s", e)
 
     # Наполняем тестовыми данными (квартиры 1-20, объявление, опрос)
     async with async_session_maker() as session:

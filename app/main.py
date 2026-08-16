@@ -80,7 +80,10 @@ async def run_services():
     """Асинхронный запуск базы данных, FastAPI сервера и Telegram-бота параллельно"""
     # 1. Инициализируем базу данных
     logger.info("Initializing database...")
-    await init_database()
+    try:
+        await init_database()
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}", exc_info=True)
 
     # 2. Настраиваем FastAPI сервер для облака (0.0.0.0 и порт Render)
     port = int(os.getenv("PORT", 8000))
