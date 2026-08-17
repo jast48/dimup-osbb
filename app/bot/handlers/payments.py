@@ -28,6 +28,9 @@ async def cmd_unified_billing_hub(event: Message | CallbackQuery, state: FSMCont
     Головний екран: Єдина комунальна квитанція по квартирі з усіма міськими службами.
     """
     await state.clear()
+    if isinstance(event, CallbackQuery):
+        await event.answer()  # Мгновенно снимает часики с кнопки в Telegram
+
     message = event if isinstance(event, Message) else event.message
     telegram_id = event.from_user.id
 
