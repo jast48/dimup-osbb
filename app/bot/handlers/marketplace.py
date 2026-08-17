@@ -147,21 +147,19 @@ async def cmd_marketplace_main(event: Message | CallbackQuery, state: FSMContext
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="👷‍♂️ Перевірені підрядники будинку", callback_data="mkt_contractors_list")
-            ],
-            [
-                InlineKeyboardButton(text="🚰 Сантехніка", callback_data="mkt_cat_plumbing"),
+                InlineKeyboardButton(text="🚰 Сантехнічні роботи", callback_data="mkt_cat_plumbing"),
                 InlineKeyboardButton(text="💡 Електрика", callback_data="mkt_cat_electricity")
             ],
             [
-                InlineKeyboardButton(text="🧹 Клінінг", callback_data="mkt_cat_cleaning"),
+                InlineKeyboardButton(text="🧹 Клінінг та чистота", callback_data="mkt_cat_cleaning"),
                 InlineKeyboardButton(text="❄️ Кондиціонери", callback_data="mkt_cat_ac")
             ],
             [
                 InlineKeyboardButton(text="🔑 Замки та двері", callback_data="mkt_cat_locks"),
-                InlineKeyboardButton(text="🚚 Вантажники / Вивіз", callback_data="mkt_cat_logistics")
+                InlineKeyboardButton(text="🚚 Вантажники та вивіз", callback_data="mkt_cat_logistics")
             ],
             [
+                InlineKeyboardButton(text="👷‍♂️ Реєстр майстрів (Анкети)", callback_data="mkt_contractors_list"),
                 InlineKeyboardButton(text="📦 Мої замовлення", callback_data="mkt_my_orders")
             ]
         ]
