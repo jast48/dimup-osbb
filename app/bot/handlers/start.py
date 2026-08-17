@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, delete, or_
@@ -16,7 +16,7 @@ from app.config import settings
 
 router = Router()
 
-@router.message(CommandStart())
+@router.message(CommandStart(), StateFilter("*"))
 async def cmd_start(message: Message, state: FSMContext):
     """
     Точка входа /start: проверяет наличие пользователя в базе.
@@ -88,7 +88,7 @@ async def cb_start_reg_resident(callback: CallbackQuery, state: FSMContext):
     await state.set_state(RegistrationState.waiting_for_apartment)
 
 
-@router.message(F.text == "❌ Скасувати")
+@router.message(F.text == "❌ Скасувати", StateFilter("*"))
 async def process_cancel(message: Message, state: FSMContext):
     """Отмена текущего действия и возврат в главное меню"""
     await state.clear()
@@ -201,7 +201,7 @@ async def process_phone(message: Message, state: FSMContext):
     )
 
 
-@router.message(Command("reset"))
+@router.message(Command("reset"), StateFilter("*"))
 async def cmd_reset_my_profile(message: Message, state: FSMContext):
     """Скидання профілю користувача для повторного проходження реєстрації"""
     await state.clear()
@@ -239,8 +239,8 @@ async def cmd_reset_my_profile(message: Message, state: FSMContext):
     )
 
 
-@router.message(Command("master"))
-@router.message(Command("contractor"))
+@router.message(Command("master"), StateFilter("*"))
+@router.message(Command("contractor"), StateFilter("*"))
 async def cmd_quick_switch_master(message: Message, state: FSMContext):
     """Миттєве перемикання на роль підрядника"""
     await state.clear()
@@ -277,7 +277,7 @@ async def cmd_quick_switch_master(message: Message, state: FSMContext):
     )
 
 
-@router.message(Command("resident"))
+@router.message(Command("resident"), StateFilter("*"))
 async def cmd_quick_switch_resident(message: Message, state: FSMContext):
     """Миттєве перемикання на роль мешканця"""
     await state.clear()
