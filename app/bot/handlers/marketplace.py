@@ -273,6 +273,68 @@ CAT_ALIASES = {
     "log": "logistics"
 }
 
+
+async def render_category_screen(message: Message, cat_code: str):
+    cat_code = CAT_ALIASES.get(cat_code, cat_code)
+    c = CONTRACTORS_CATALOG.get(cat_code, CONTRACTORS_CATALOG["plumbing"])
+
+    buttons = []
+    for s_code, s_title, s_price in c["services"]:
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{s_title} — від {int(s_price)} грн",
+                callback_data=f"mkt_item_direct_{cat_code}_{s_code}"
+            )
+        ])
+
+    buttons.append([InlineKeyboardButton(text="🔙 Назад до каталогу", callback_data="mkt_main_hub")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    text = (
+        f"{c['category']}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👷‍♂️ <b>Закріплений майстер:</b> {c['name']} (⭐ {c['rating']})\n\n"
+        f"<i>Оберіть потрібну послугу зі списку нижче:</i>"
+    )
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.message(F.text.contains("Сантехн"))
+async def msg_cat_plumbing(message: Message, state: FSMContext):
+    await state.clear()
+    await render_category_screen(message, "plumbing")
+
+
+@router.message(F.text.contains("Електрик"))
+async def msg_cat_electricity(message: Message, state: FSMContext):
+    await state.clear()
+    await render_category_screen(message, "electricity")
+
+
+@router.message(F.text.contains("Клінінг"))
+async def msg_cat_cleaning(message: Message, state: FSMContext):
+    await state.clear()
+    await render_category_screen(message, "cleaning")
+
+
+@router.message(F.text.contains("Кондиціонер"))
+async def msg_cat_ac(message: Message, state: FSMContext):
+    await state.clear()
+    await render_category_screen(message, "ac")
+
+
+@router.message(F.text.contains("Замки") | F.text.contains("двері"))
+async def msg_cat_locks(message: Message, state: FSMContext):
+    await state.clear()
+    await render_category_screen(message, "locks")
+
+
+@router.message(F.text.contains("Вантажн"))
+async def msg_cat_logistics(message: Message, state: FSMContext):
+    await state.clear()
+    await render_category_screen(message, "logistics")
+
+
 @router.callback_query(F.data.startswith("mkt_cat_"))
 async def cb_show_category(callback: CallbackQuery):
     await callback.answer()
