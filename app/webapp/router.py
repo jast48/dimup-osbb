@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.session import async_session_maker
-from app.db.models import Apartment, Bill, Poll, PollOption, Ticket
 from app.services.utility_service import UtilityService
+from app.bot.handlers.marketplace import CONTRACTORS_CATALOG
 
 router = APIRouter()
 
@@ -64,6 +64,7 @@ async def render_webapp(request: Request, apt_num: int = 1):
             "bills": bills,
             "unified_summary": unified_summary,
             "polls": polls,
-            "tickets": tickets
+            "tickets": tickets,
+            "contractors": CONTRACTORS_CATALOG
         }
     )
