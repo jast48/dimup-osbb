@@ -131,10 +131,18 @@ CONTRACTORS_CATALOG = {
 
 @router.message(Command("services"))
 @router.message(Command("marketplace"))
-@router.message(F.text.contains("Маркетплейс") | F.text.contains("Послуги") | F.text.contains("майстрів"))
-async def cmd_marketplace_main(message: Message, state: FSMContext):
+@router.message(F.text.contains("Маркетплейс") | F.text.contains("Послуги") | F.text.contains("майстрів") | F.text.contains("Платні") | F.text.contains("послуг"))
+@router.callback_query(F.data == "mkt_main_hub")
+@router.callback_query(F.data == "mkt_back_main")
+@router.callback_query(F.data == "mkt_start")
+@router.callback_query(F.data == "marketplace_main")
+async def cmd_marketplace_main(event: Message | CallbackQuery, state: FSMContext):
     """Головне меню маркетплейсу послуг та підрядників"""
     await state.clear()
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    message = event if isinstance(event, Message) else event.message
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -169,7 +177,14 @@ async def cmd_marketplace_main(message: Message, state: FSMContext):
         "💳 <b>Оплата за фактом:</b> карткою або готівкою після перевірки робіт\n\n"
         "Оберіть потрібний розділ нижче:"
     )
-    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    
+    if isinstance(event, CallbackQuery):
+        try:
+            await event.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        except Exception:
+            await event.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 # ==========================================
