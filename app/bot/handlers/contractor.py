@@ -194,7 +194,15 @@ async def cmd_contractor_new_orders(message: Message):
         )
         orders = orders_res.scalars().all()
 
-    if not orders:
+        orders_data = []
+        for o in orders:
+            client_res = await session.execute(select(User).where(User.id == o.user_id))
+            client = client_res.scalar_one_or_none()
+            apt_res = await session.execute(select(Apartment).where(Apartment.id == o.apartment_id))
+            apt = apt_res.scalar_one_or_none()
+            orders_data.append((o, client, apt))
+
+    if not orders_data:
         await message.answer(
             "📥 <b>Нові замовлення:</b>\n\n"
             "Наразі немає відкритих замовлень. Як тільки мешканець створить заявку на виклик майстра, ви отримаєте миттєве сповіщення!",
@@ -202,9 +210,13 @@ async def cmd_contractor_new_orders(message: Message):
         )
         return
 
-    await message.answer(f"📥 <b>Доступні нові замовлення ({len(orders)}):</b>\n━━━━━━━━━━━━━━━━━━━━━━", parse_mode="HTML")
+    await message.answer(f"📥 <b>Доступні нові замовлення ({len(orders_data)}):</b>\n━━━━━━━━━━━━━━━━━━━━━━", parse_mode="HTML")
 
-    for o in orders:
+    for o, client, apt in orders_data:
+        client_name = client.full_name if client else "Мешканець"
+        client_apt = f"№{apt.number}" if apt else "—"
+        client_phone = client.phone if client and client.phone else (o.contact_phone or "—")
+
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
@@ -215,10 +227,13 @@ async def cmd_contractor_new_orders(message: Message):
         )
         card_text = (
             f"🏷 <b>Замовлення №{o.id:04d}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🛠 <b>Послуга:</b> {o.service_title}\n"
             f"💰 <b>Бюджет:</b> ~{o.price_est:.2f} грн\n"
             f"⏰ <b>Бажаний час:</b> <b>{o.preferred_time or 'Якнайшвидше'}</b>\n"
-            f"📱 <b>Телефон клієнта:</b> <code>{o.contact_phone or '—'}</code>\n"
+            f"🏢 <b>Квартира:</b> {client_apt}\n"
+            f"👤 <b>Замовник:</b> {client_name}\n"
+            f"📱 <b>Телефон:</b> <code>{client_phone}</code>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         await message.answer(card_text, reply_markup=kb, parse_mode="HTML")
@@ -226,7 +241,7 @@ async def cmd_contractor_new_orders(message: Message):
 
 @router.message(F.text == "📋 Мої активні роботи")
 async def cmd_contractor_active_orders(message: Message):
-    """Список активных заказов, которые мастер взял в работу"""
+    """Список активних замовлень у роботі з повною карткою клієнта"""
     telegram_id = message.from_user.id
     async with async_session_maker() as session:
         user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
@@ -242,7 +257,16 @@ async def cmd_contractor_active_orders(message: Message):
         )
         orders = orders_res.scalars().all()
 
-    if not orders:
+        # Збираємо дані клієнтів
+        orders_data = []
+        for o in orders:
+            client_res = await session.execute(select(User).where(User.id == o.user_id))
+            client = client_res.scalar_one_or_none()
+            apt_res = await session.execute(select(Apartment).where(Apartment.id == o.apartment_id))
+            apt = apt_res.scalar_one_or_none()
+            orders_data.append((o, client, apt))
+
+    if not orders_data:
         await message.answer(
             "📋 <b>Активні роботи:</b>\n\n"
             "У вас немає замовлень у процесі виконання.\n"
@@ -251,21 +275,32 @@ async def cmd_contractor_active_orders(message: Message):
         )
         return
 
-    for o in orders:
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="🏁 Роботу виконано", callback_data=f"master_complete_order_{o.id}")
-                ]
-            ]
-        )
+    for o, client, apt in orders_data:
+        client_name = client.full_name if client else "Мешканець"
+        client_phone = client.phone if client and client.phone else (o.contact_phone or "Не вказано")
+        client_apt = f"№{apt.number}" if apt else "Не вказано"
+        client_tg = f"@{client.username}" if client and client.username else "—"
+
+        buttons = []
+        if client and client.username:
+            buttons.append([InlineKeyboardButton(text="💬 Написати клієнту в Telegram", url=f"https://t.me/{client.username}")])
+        elif client and client.telegram_id:
+            buttons.append([InlineKeyboardButton(text="💬 Написати клієнту", url=f"tg://user?id={client.telegram_id}")])
+
+        buttons.append([InlineKeyboardButton(text="🏁 Роботу виконано", callback_data=f"master_complete_order_{o.id}")])
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
         card_text = (
             f"🛠 <b>Замовлення №{o.id:04d} [В РОБОТІ]</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📌 <b>Послуга:</b> {o.service_title}\n"
-            f"⏰ <b>Час візиту:</b> {o.preferred_time or 'Не вказано'}\n"
-            f"📱 <b>Телефон замовника:</b> <code>{o.contact_phone}</code>\n"
             f"💰 <b>Сума до розрахунку:</b> {o.price_est:.2f} грн\n"
+            f"⏰ <b>Час візиту:</b> <b>{o.preferred_time or 'Якнайшвидше'}</b>\n\n"
+            f"👤 <b>КАРТКА КЛІЄНТА / ОБ'ЄКТА:</b>\n"
+            f"• <b>Ім'я замовника:</b> {client_name}\n"
+            f"• <b>Квартира:</b> {client_apt}\n"
+            f"• <b>Телефон:</b> <code>{client_phone}</code>\n"
+            f"• <b>Telegram:</b> {client_tg}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         await message.answer(card_text, reply_markup=kb, parse_mode="HTML")
@@ -296,19 +331,44 @@ async def cb_master_accept_order(callback: CallbackQuery, bot: Bot):
         order.assigned_contractor_id = master.id
         await session.commit()
 
-        # Отримуємо замовника для повідомлення
+        # Отримуємо замовника та квартиру для повної картки
         client_res = await session.execute(select(User).where(User.id == order.user_id))
         client = client_res.scalar_one_or_none()
 
-    await callback.answer("✅ Ви успішно прийняли замовлення в роботу!", show_alert=True)
-    await callback.message.edit_text(
-        f"✅ <b>Замовлення №{order_id:04d} ПРИЙНЯТО В РОБОТУ!</b>\n\n"
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == order.apartment_id))
+        apt = apt_res.scalar_one_or_none()
+
+    client_name = client.full_name if client else "Мешканець"
+    client_phone = client.phone if client and client.phone else (order.contact_phone or "Не вказано")
+    client_apt = f"№{apt.number}" if apt else "Не вказано"
+    client_tg = f"@{client.username}" if client and client.username else "—"
+
+    buttons = []
+    if client and client.username:
+        buttons.append([InlineKeyboardButton(text="💬 Написати клієнту в Telegram", url=f"https://t.me/{client.username}")])
+    elif client and client.telegram_id:
+        buttons.append([InlineKeyboardButton(text="💬 Написати клієнту", url=f"tg://user?id={client.telegram_id}")])
+
+    buttons.append([InlineKeyboardButton(text="🏁 Роботу виконано", callback_data=f"master_complete_order_{order_id}")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    card_text = (
+        f"✅ <b>Замовлення №{order_id:04d} ПРИЙНЯТО В РОБОТУ!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🛠 <b>Послуга:</b> {order.service_title}\n"
-        f"⏰ <b>Час візиту:</b> {order.preferred_time}\n"
-        f"📱 <b>Контакт клієнта:</b> <code>{order.contact_phone}</code>\n\n"
-        f"<i>Зв'яжіться з клієнтом за потреби. Після завершення робіт натисніть кнопку «🏁 Роботу виконано» у розділі «📋 Мої активні роботи».</i>",
-        parse_mode="HTML"
+        f"💰 <b>Бюджет:</b> {order.price_est:.2f} грн\n"
+        f"⏰ <b>Час візиту:</b> <b>{order.preferred_time or 'Якнайшвидше'}</b>\n\n"
+        f"👤 <b>КАРТКА ЗАМОВНИКА / АДРЕСА:</b>\n"
+        f"• <b>Клієнт:</b> {client_name}\n"
+        f"• <b>Квартира:</b> {client_apt}\n"
+        f"• <b>Телефон:</b> <code>{client_phone}</code>\n"
+        f"• <b>Telegram:</b> {client_tg}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"<i>Зв'яжіться з клієнтом за потреби. Після виконання замовлення натисніть кнопку «🏁 Роботу виконано».</i>"
     )
+
+    await callback.answer("✅ Ви успішно прийняли замовлення в роботу!", show_alert=True)
+    await callback.message.edit_text(card_text, reply_markup=kb, parse_mode="HTML")
 
     # Сповіщаємо мешканця
     if client and client.telegram_id:
