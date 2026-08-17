@@ -355,34 +355,89 @@ async def cb_order_direct_item(callback: CallbackQuery, state: FSMContext):
 async def cb_order_proceed(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
-    title = data.get("item_title", "Послуга")
+    title = data.get("item_title") or "Послуга майстра"
+    contractor = data.get("contractor_name") or "Закріплений спеціаліст"
     
-    await callback.message.delete()
-    await callback.message.answer(
-        f"📅 <b>Замовлення послуги: «{title}»</b>\n\n"
-        f"Вкажіть <b>бажану дату та час візиту майстра</b>:\n"
-        f"<i>(Наприклад: «Сьогодні після 18:00» або «Завтра з 10:00 до 13:00»)</i>",
-        reply_markup=get_cancel_keyboard(),
-        parse_mode="HTML"
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⚡️ Терміново (протягом 1-2 год)", callback_data="mkt_set_time_urgent")
+            ],
+            [
+                InlineKeyboardButton(text="🌅 Сьогодні (після 18:00)", callback_data="mkt_set_time_today_eve"),
+                InlineKeyboardButton(text="☀️ Завтра (10:00 - 13:00)", callback_data="mkt_set_time_tmrw_morn")
+            ],
+            [
+                InlineKeyboardButton(text="🌆 Завтра (14:00 - 18:00)", callback_data="mkt_set_time_tmrw_eve"),
+                InlineKeyboardButton(text="📅 Вихідні (Субота 11:00)", callback_data="mkt_set_time_weekend")
+            ],
+            [
+                InlineKeyboardButton(text="❌ Скасувати", callback_data="mkt_main_hub")
+            ]
+        ]
     )
+
+    text = (
+        f"📅 <b>ОБЕРІТЬ ЧАС ВІЗИТУ МАЙСТРА</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🛠 <b>Послуга:</b> {title}\n"
+        f"👷‍♂️ <b>Виконавець:</b> {contractor}\n\n"
+        f"👉 <b>Оберіть кнопку зі зручним часом</b> або <b>напишіть свій варіант текстом</b> у відповідь <i>(наприклад: «Субота 11:00»)</i>:"
+    )
+    
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
+
     await state.set_state(MarketplaceOrderState.waiting_for_time)
 
 
+@router.callback_query(F.data.startswith("mkt_set_time_"))
+async def cb_quick_time_select(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    time_map = {
+        "mkt_set_time_urgent": "⚡️ Терміново (протягом 1-2 год)",
+        "mkt_set_time_today_eve": "🌅 Сьогодні після 18:00",
+        "mkt_set_time_tmrw_morn": "☀️ Завтра з 10:00 до 13:00",
+        "mkt_set_time_tmrw_eve": "🌆 Завтра з 14:00 до 18:00",
+        "mkt_set_time_weekend": "📅 На вихідних (Субота 11:00)"
+    }
+    chosen_time = time_map.get(callback.data, "У найближчий зручний час")
+    await finalize_marketplace_order(
+        event=callback,
+        state=state,
+        pref_time=chosen_time,
+        telegram_id=callback.from_user.id
+    )
+
+
 @router.message(MarketplaceOrderState.waiting_for_time, F.text)
-async def process_order_time(message: Message, state: FSMContext, bot: Bot):
+async def process_order_time(message: Message, state: FSMContext):
     pref_time = message.text.strip()
+    await finalize_marketplace_order(
+        event=message,
+        state=state,
+        pref_time=pref_time,
+        telegram_id=message.from_user.id
+    )
+
+
+async def finalize_marketplace_order(event: Message | CallbackQuery, state: FSMContext, pref_time: str, telegram_id: int):
     data = await state.get_data()
-    
     title = data.get("item_title") or "Послуга майстра"
     price = data.get("item_price", 450.0)
     contractor = data.get("contractor_name") or "Закріплений спеціаліст"
-    telegram_id = message.from_user.id
 
     async with async_session_maker() as session:
         user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
         user = user_res.scalar_one_or_none()
         if not user:
-            await message.answer("⚠️ Будь ласка, зареєструйтесь через /start.")
+            msg = "⚠️ Будь ласка, зареєструйтесь через /start."
+            if isinstance(event, CallbackQuery):
+                await event.message.answer(msg)
+            else:
+                await event.answer(msg)
             await state.clear()
             return
 
@@ -407,7 +462,7 @@ async def process_order_time(message: Message, state: FSMContext, bot: Bot):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📦 Мої замовлення", callback_data="mkt_my_orders")],
+            [InlineKeyboardButton(text="📦 Переглянути мої замовлення", callback_data="mkt_my_orders")],
             [InlineKeyboardButton(text="🔙 До маркетплейсу", callback_data="mkt_main_hub")]
         ]
     )
@@ -422,9 +477,16 @@ async def process_order_time(message: Message, state: FSMContext, bot: Bot):
         f"🏢 <b>Адреса:</b> Квартира №{apt_num}\n"
         f"📌 <b>Статус:</b> ⏳ Очікує підтвердження майстром\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📞 <i>Майстер зв'яжеться з вами за номером <code>{user.phone or 'профілю'}</code> для підтвердження. Оплата здійснюється після виконання робіт.</i>"
+        f"📞 <i>Майстер зв'яжеться з вами за номером <code>{user.phone or 'профілю'}</code> для підтвердження візиту. Оплата здійснюється після виконання робіт.</i>"
     )
-    await message.answer(confirm_text, reply_markup=get_main_menu_keyboard(user.role), parse_mode="HTML")
+
+    if isinstance(event, CallbackQuery):
+        try:
+            await event.message.edit_text(confirm_text, reply_markup=kb, parse_mode="HTML")
+        except Exception:
+            await event.message.answer(confirm_text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await event.answer(confirm_text, reply_markup=kb, parse_mode="HTML")
 
 
 # ==========================================
