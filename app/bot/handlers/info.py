@@ -366,23 +366,61 @@ async def cmd_profile(message: Message, state: FSMContext):
     await message.answer(profile_text, reply_markup=kb, parse_mode="HTML")
 
 
+@router.callback_query(F.data == "resident_profile_back")
+async def cb_resident_profile_back(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await cmd_profile(callback.message, state)
+
+
 @router.callback_query(F.data == "resident_my_tickets")
-async def cb_resident_my_tickets(callback: CallbackQuery):
-    telegram_id = callback.from_user.id
+@router.message(F.text.contains("Мої заявки") | F.text.contains("мої заявки"))
+async def cb_resident_my_tickets(event: Message | CallbackQuery):
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+    message = event if isinstance(event, Message) else event.message
+    telegram_id = event.from_user.id
+
     async with async_session_maker() as session:
         user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
         user = user_res.scalar_one_or_none()
         if not user:
-            await callback.answer("Користувача не знайдено.")
+            await message.answer("⚠️ Будь ласка, спочатку запустіть /start для реєстрації.")
             return
 
         tickets_res = await session.execute(
-            select(Ticket).where(Ticket.creator_id == user.id).order_by(desc(Ticket.created_at)).limit(5)
+            select(Ticket).where(Ticket.creator_id == user.id).order_by(desc(Ticket.created_at)).limit(10)
         )
         tickets = tickets_res.scalars().all()
 
-    if not tickets:
-        await callback.answer("У вас ще немає створених заявок.", show_alert=True)
+        tickets_data = []
+        for t in tickets:
+            master_name = None
+            if t.assigned_to_id:
+                m_res = await session.execute(select(User).where(User.id == t.assigned_to_id))
+                m_obj = m_res.scalar_one_or_none()
+                if m_obj:
+                    master_name = m_obj.full_name
+            tickets_data.append((t, master_name))
+
+    if not tickets_data:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 До профілю", callback_data="resident_profile_back")]
+            ]
+        )
+        empty_text = (
+            "📋 <b>МОЇ ЗАЯВКИ ДО ПРАВЛІННЯ / ДИСПЕТЧЕРА</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "У вас наразі немає створених заявок на обслуговування.\n\n"
+            "<i>Щоб створити нову заявку за допомогою штучного інтелекту або голосу, натисніть кнопку «🔧 Заявка (AI)» у нижньому меню!</i>"
+        )
+        if isinstance(event, CallbackQuery):
+            try:
+                await event.message.edit_text(empty_text, reply_markup=kb, parse_mode="HTML")
+            except Exception:
+                await event.message.answer(empty_text, reply_markup=kb, parse_mode="HTML")
+        else:
+            await message.answer(empty_text, reply_markup=kb, parse_mode="HTML")
         return
 
     status_badges = {
@@ -392,19 +430,27 @@ async def cb_resident_my_tickets(callback: CallbackQuery):
         TicketStatus.CANCELLED: "❌ Відхилено"
     }
 
-    await callback.message.delete()
-    for t in tickets:
-        voice_status = "✅ Є аудіозапис" if t.audio_file_id else "📝 Текст"
-        photo_status = "✅ Додано" if t.photo_file_id else "❌ Немає"
+    if isinstance(event, CallbackQuery):
+        try:
+            await event.message.delete()
+        except Exception:
+            pass
 
-        text = (
-            f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status)}]\n"
-            f"📅 <b>Дата:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}\n\n"
-            f"📝 <b>Текст:</b> {t.description}\n"
+    await message.answer(f"📋 <b>Ваші створені заявки ({len(tickets_data)}):</b>\n━━━━━━━━━━━━━━━━━━━━━━", parse_mode="HTML")
+
+    for t, master_name in tickets_data:
+        voice_status = "✅ Є аудіо" if t.audio_file_id else "📝 Текст"
+        photo_status = "✅ Додано" if t.photo_file_id else "❌ Немає"
+        master_line = f"\n👷‍♂️ <b>Призначений майстер:</b> {master_name}" if master_name else ""
+
+        card_text = (
+            f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status, '🛠 В роботі')}]\n"
+            f"📅 <b>Дата створення:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}{master_line}\n\n"
+            f"📝 <b>Опис проблеми:</b>\n{t.description}\n"
         )
         if t.ai_summary:
-            text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
+            card_text += f"\n💡 <b>AI підсумок:</b> <i>{t.ai_summary}</i>\n"
 
         media_row = [
             InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}"),
@@ -413,10 +459,7 @@ async def cb_resident_my_tickets(callback: CallbackQuery):
         ]
 
         kb = InlineKeyboardMarkup(inline_keyboard=[media_row])
-        await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
-
-    await callback.message.answer("Оберіть дію в меню нижче:", reply_markup=get_main_menu_keyboard(user.role))
-    await callback.answer()
+        await message.answer(card_text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(F.text.contains("Панель правління"))
