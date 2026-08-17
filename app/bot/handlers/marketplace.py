@@ -262,15 +262,29 @@ async def cb_view_contractor(callback: CallbackQuery, state: FSMContext):
 # 4. ПЕРЕГЛЯД КАТЕГОРІЙ ПОСЛУГ
 # ==========================================
 
+CAT_ALIASES = {
+    "plumbing": "plumbing",
+    "elec": "electricity",
+    "electricity": "electricity",
+    "clean": "cleaning",
+    "cleaning": "cleaning",
+    "ac": "ac",
+    "lock": "locks",
+    "locks": "locks",
+    "logistics": "logistics",
+    "log": "logistics"
+}
+
 @router.callback_query(F.data.startswith("mkt_cat_"))
 async def cb_show_category(callback: CallbackQuery):
     await callback.answer()
-    cat_code = callback.data.replace("mkt_cat_", "")
+    raw_code = callback.data.replace("mkt_cat_", "")
+    cat_code = CAT_ALIASES.get(raw_code, raw_code)
     c = CONTRACTORS_CATALOG.get(cat_code)
     
     if not c:
-        await callback.answer("Категорію не знайдено.")
-        return
+        cat_code = "plumbing"
+        c = CONTRACTORS_CATALOG[cat_code]
 
     buttons = []
     for s_code, s_title, s_price in c["services"]:
@@ -288,7 +302,7 @@ async def cb_show_category(callback: CallbackQuery):
         f"{c['category']}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👷‍♂️ <b>Закріплений майстер:</b> {c['name']} (⭐ {c['rating']})\n\n"
-        f"<i>Оберіть потрібну послугу для оформлення виклику:</i>"
+        f"<i>Оберіть потрібну послугу зі списку нижче:</i>"
     )
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
@@ -303,32 +317,34 @@ async def cb_back_to_main_hub(callback: CallbackQuery, state: FSMContext):
 # 5. ОФОРМЛЕННЯ ЗАМОВЛЕННЯ ПОСЛУГИ
 # ==========================================
 
-@router.callback_query(F.data.startswith("mkt_item_direct_"))
-async def cb_order_direct_item(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("mkt_item_"))
+async def cb_order_item_generic(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    parts = callback.data.replace("mkt_item_direct_", "").split("_", 1)
-    cat_key = parts[0]
-    s_code = parts[1]
+    raw = callback.data.replace("mkt_item_direct_", "").replace("mkt_item_", "")
     
-    c = CONTRACTORS_CATALOG.get(cat_key)
-    if not c:
-        return
-        
+    chosen_cat = None
     chosen_service = None
-    for code, title, price in c["services"]:
-        if code == s_code or code == f"{cat_key}_{s_code}":
-            chosen_service = (title, price)
+    
+    # Шукаємо послугу серед усіх категорій
+    for cat_key, c in CONTRACTORS_CATALOG.items():
+        for s_code, s_title, s_price in c["services"]:
+            if raw == s_code or raw == f"{cat_key}_{s_code}" or raw.endswith(s_code) or s_code in raw:
+                chosen_cat = c
+                chosen_service = (s_title, s_price)
+                break
+        if chosen_service:
             break
             
-    if not chosen_service:
-        chosen_service = (c["services"][0][1], c["services"][0][2])
+    if not chosen_cat:
+        chosen_cat = CONTRACTORS_CATALOG["plumbing"]
+        chosen_service = (chosen_cat["services"][0][1], chosen_cat["services"][0][2])
 
     title, price = chosen_service
     await state.update_data(
         item_title=title,
         item_price=price,
-        contractor_name=c["name"],
-        contractor_company=c["company"]
+        contractor_name=chosen_cat["name"],
+        contractor_company=chosen_cat["company"]
     )
 
     kb = InlineKeyboardMarkup(
@@ -342,8 +358,8 @@ async def cb_order_direct_item(callback: CallbackQuery, state: FSMContext):
         f"📋 <b>КАРТКА ЗАМОВЛЕННЯ ПОСЛУГИ</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🛠 <b>Послуга:</b> {title}\n"
-        f"👷‍♂️ <b>Виконавець:</b> {c['name']} ({c['company']})\n"
-        f"⭐️ <b>Рейтинг майстра:</b> {c['rating']} / 5.0\n"
+        f"👷‍♂️ <b>Виконавець:</b> {chosen_cat['name']} ({chosen_cat['company']})\n"
+        f"⭐️ <b>Рейтинг майстра:</b> {chosen_cat['rating']} / 5.0\n"
         f"💰 <b>Орієнтовна вартість:</b> <b>від {int(price)} грн</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"<i>Бажаєте викликати майстра?</i>"
