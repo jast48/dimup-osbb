@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.session import async_session_maker
+from app.db.models import Apartment, Bill, Poll, PollOption, Ticket
 from app.services.utility_service import UtilityService
 from app.bot.handlers.marketplace import CONTRACTORS_CATALOG
 
@@ -12,6 +13,14 @@ router = APIRouter()
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+@router.get("/")
+@router.get("/landing")
+async def render_landing(request: Request):
+    """
+    Отображение презентационного High-Tech лендинга системы DimUp OSBB
+    """
+    return templates.TemplateResponse(request, "landing.html", {})
 
 @router.get("/webapp")
 async def render_webapp(request: Request, apt_num: int = 1):
