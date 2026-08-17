@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
@@ -203,5 +203,38 @@ async def process_phone(message: Message, state: FSMContext):
         f"Ви закріплені за квартирою №<b>{apt_number}</b>.\n"
         f"Тепер вам доступні всі можливості системи DimUp: створення заявок з AI, перегляд квитанцій та голосування.",
         reply_markup=get_main_menu_keyboard(user_role),
+        parse_mode="HTML"
+    )
+
+
+@router.message(Command("reset"))
+async def cmd_reset_my_profile(message: Message, state: FSMContext):
+    """Скидання профілю користувача для повторного проходження реєстрації"""
+    await state.clear()
+    telegram_id = message.from_user.id
+    
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if user:
+            # Відв'язуємо від квартир
+            apts_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+            apts = apts_res.scalars().all()
+            for apt in apts:
+                apt.resident_id = None
+                
+            await session.delete(user)
+            await session.commit()
+            
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Я мешканець будинку", callback_data="start_reg_resident")],
+            [InlineKeyboardButton(text="🛠 Я підрядник / майстер", callback_data="start_register_contractor")]
+        ]
+    )
+    await message.answer(
+        "🔄 <b>Ваш профіль у боті успішно скинуто!</b>\n\n"
+        "Оберіть, як ви бажаєте зареєструватися заново:",
+        reply_markup=kb,
         parse_mode="HTML"
     )
