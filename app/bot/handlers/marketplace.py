@@ -436,23 +436,13 @@ async def cb_order_proceed(callback: CallbackQuery, state: FSMContext):
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(text="⚡️ Терміново (протягом 1-2 год)", callback_data="mkt_set_time_urgent")
-            ],
-            [
-                InlineKeyboardButton(text="🌅 Сьогодні (після 18:00)", callback_data="mkt_set_time_today_eve"),
-                InlineKeyboardButton(text="☀️ Завтра (10:00 - 13:00)", callback_data="mkt_set_time_tmrw_morn")
-            ],
-            [
-                InlineKeyboardButton(text="🌆 Завтра (14:00 - 18:00)", callback_data="mkt_set_time_tmrw_eve"),
-                InlineKeyboardButton(text="📅 Вихідні (Субота 11:00)", callback_data="mkt_set_time_weekend")
-            ],
-            [
-                InlineKeyboardButton(text="✍️ Вказати власний час", callback_data="mkt_custom_time_prompt")
-            ],
-            [
-                InlineKeyboardButton(text="❌ Скасувати", callback_data="mkt_main_hub")
-            ]
+            [InlineKeyboardButton(text="⚡️ Терміново (протягом 1-2 год)", callback_data="mkt_set_time_urgent")],
+            [InlineKeyboardButton(text="🌅 Сьогодні після 18:00", callback_data="mkt_set_time_today_eve")],
+            [InlineKeyboardButton(text="☀️ Завтра (10:00 - 13:00)", callback_data="mkt_set_time_tmrw_morn")],
+            [InlineKeyboardButton(text="🌆 Завтра (14:00 - 18:00)", callback_data="mkt_set_time_tmrw_eve")],
+            [InlineKeyboardButton(text="📅 Вихідні (Субота 11:00)", callback_data="mkt_set_time_weekend")],
+            [InlineKeyboardButton(text="✍️ Вказати власний час", callback_data="mkt_custom_time_prompt")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="mkt_main_hub")]
         ]
     )
 
