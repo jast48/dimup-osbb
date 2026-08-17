@@ -8,7 +8,8 @@ from app.db.models import (
     Ticket, TicketCategory, TicketUrgency, TicketStatus,
     Announcement,
     Poll, PollOption,
-    Bill, MeterReading, ServiceOrder
+    Bill, MeterReading, ServiceOrder,
+    UtilityAccount, UtilityProviderType
 )
 
 logger = logging.getLogger(__name__)

@@ -27,6 +27,8 @@ if "asyncpg" in db_url:
 engine = create_async_engine(
     db_url,
     connect_args=connect_args,
+    pool_pre_ping=True,  # Автоматически проверяет соединение и переподключается, если оно разорвано сервером после простоя
+    pool_recycle=300,    # Обновляет соединения каждые 5 минут, предотвращая сброс со стороны Neon/NAT
     echo=settings.DEBUG,
 )
 

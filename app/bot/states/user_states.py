@@ -49,3 +49,8 @@ class AdminSplitBillState(StatesGroup):
     waiting_for_purpose = State()
     waiting_for_split_type = State()
     waiting_for_amount = State()
+
+class UtilityAccountState(StatesGroup):
+    """Состояния привязки и управления лицевыми счетами коммуналки"""
+    waiting_for_provider = State()
+    waiting_for_account_number = State()

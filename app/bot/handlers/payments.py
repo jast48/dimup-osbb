@@ -1,19 +1,29 @@
 import uuid
 from datetime import datetime
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, desc
 from app.db.session import async_session_maker
-from app.db.models import User, Apartment, Bill
-from app.bot.keyboards.keyboards import get_main_menu_keyboard
+from app.db.models import User, Apartment, Bill, UtilityAccount, UtilityProviderType, UserRole
+from app.bot.states.user_states import UtilityAccountState
+from app.bot.keyboards.keyboards import get_main_menu_keyboard, get_cancel_keyboard
+from app.services.utility_service import UtilityService, PROVIDER_CATALOG
 
 router = Router()
 
-@router.message(F.text.contains("Оплата") | F.text.contains("Сплатити") | F.text.contains("Платіжка"))
+
+# ==========================================
+# 1. ЄДИНА КОМУНАЛЬНА КВИТАНЦІЯ (ХАБ РАХУНКІВ)
+# ==========================================
+
+@router.message(F.text.contains("Оплата") | F.text.contains("Сплатити") | F.text.contains("Платіжка") | F.text.contains("Рахунки"))
 @router.callback_query(F.data == "pay_bills_start")
-async def cmd_pay_bills_menu(event: Message | CallbackQuery, state: FSMContext):
-    """Меню онлайн-оплаты счетов"""
+@router.callback_query(F.data == "utility_hub_main")
+async def cmd_unified_billing_hub(event: Message | CallbackQuery, state: FSMContext):
+    """
+    Головний екран: Єдина комунальна квитанція по квартирі з усіма міськими службами.
+    """
     await state.clear()
     message = event if isinstance(event, Message) else event.message
     telegram_id = event.from_user.id
@@ -33,140 +43,433 @@ async def cmd_pay_bills_menu(event: Message | CallbackQuery, state: FSMContext):
             await message.answer("⚠️ Вашу квартиру не знайдено.")
             return
 
-        # Ищем неоплаченные счета
-        bills_res = await session.execute(
-            select(Bill).where(Bill.apartment_id == apt.id, Bill.is_paid == False).order_by(desc(Bill.id))
-        )
-        unpaid_bills = bills_res.scalars().all()
+        # Отримуємо зведені дані про всі нарахування (ОСББ + міські служби)
+        summary = await UtilityService.get_unified_bill_summary(session, apt.id)
 
-    if not unpaid_bills:
-        text = (
-            f"🎉 <b>У вас немає неоплачених рахунків!</b>\n\n"
-            f"🏢 <b>Квартира:</b> №{apt.number}\n"
-            f"💳 <b>Поточний баланс:</b> {apt.balance:.2f} грн (Заборгованість відсутня 🟢)\n\n"
-            f"<i>Дякуємо за своєчасну оплату комунальних послуг нашого будинку!</i>"
-        )
-        await message.answer(text, parse_mode="HTML")
-        return
+    items = summary["items"]
+    total_to_pay = summary["total_to_pay"]
+    unpaid_count = summary["unpaid_count"]
 
-    total_unpaid = sum(b.amount for b in unpaid_bills)
+    header_status = f"🔴 До сплати: <b>{total_to_pay:.2f} грн</b>" if total_to_pay > 0 else "🟢 Усі рахунки сплачено (боргів немає)"
 
     text = (
-        f"💳 <b>Онлайн-оплата комунальних послуг</b>\n\n"
-        f"🏢 <b>Квартира:</b> №{apt.number}\n"
-        f"🔴 <b>Сума до сплати:</b> <b>{total_unpaid:.2f} грн</b>\n\n"
-        f"📄 <b>Неоплачені квитанції:</b>\n"
+        f"🏢 <b>ЄДИНА КОМУНАЛЬНА КВИТАНЦІЯ ПО КВАРТИРІ</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📍 <b>Квартира:</b> №{summary['apartment_number']} (Площа: {summary['area']} м²)\n"
+        f"💳 <b>Стан рахунку:</b> {header_status}\n"
+        f"🕒 <b>Оновлено:</b> {summary['last_updated']}\n\n"
+        f"📋 <b>Деталізація по службах та особових рахунках:</b>\n\n"
     )
 
+    for item in items:
+        badge = f"<b>{item['amount']:.2f} грн</b> ⏳" if not item["is_paid"] and item["amount"] > 0 else "Сплачено ✅"
+        text += (
+            f"{item['icon']} <b>{item['title']}</b>\n"
+            f"   ├ О/Р: <code>{item['account_number']}</code>\n"
+            f"   ├ Деталі: <i>{item['details']}</i>\n"
+            f"   └ До сплати: {badge}\n\n"
+        )
+
+    text += "━━━━━━━━━━━━━━━━━━━━━━"
+
     buttons = []
-    for b in unpaid_bills:
-        desc_label = b.description or "Утримання будинку"
-        text += f"• <b>{desc_label}</b> ({b.month}/{b.year}): <b>{b.amount:.2f} грн</b>\n"
+
+    if total_to_pay > 0:
         buttons.append([
             InlineKeyboardButton(
-                text=f"🟢 Сплатити {b.amount:.2f} грн — {desc_label[:20]}",
-                callback_data=f"pay_single_bill_{b.id}"
+                text=f"⚡️ СПЛАТИТИ ВСЕ ОДРАЗУ ({total_to_pay:.2f} грн)",
+                callback_data=f"pay_all_unified_{apt.id}"
             )
+        ])
+        buttons.append([
+            InlineKeyboardButton(text="🔍 Оплатити окрему службу", callback_data="pay_separate_menu")
         ])
 
     buttons.append([
-        InlineKeyboardButton(
-            text="🏦 Оплата за реквізитами IBAN",
-            callback_data="pay_iban_info"
-        )
+        InlineKeyboardButton(text="🔄 Оновити нарахування з баз", callback_data="sync_utilities_now"),
+        InlineKeyboardButton(text="⚙️ Мої особові рахунки", callback_data="manage_accounts_list")
+    ])
+    buttons.append([
+        InlineKeyboardButton(text="🏦 Банківські реквізити IBAN", callback_data="pay_iban_info")
     ])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    
+    if isinstance(event, CallbackQuery):
+        await event.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        await event.answer()
+    else:
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
-@router.callback_query(F.data.startswith("pay_single_bill_"))
-async def cb_process_single_payment(callback: CallbackQuery):
-    """Формирование шлюза оплаты Monobank / Apple Pay"""
-    bill_id = int(callback.data.split("_")[3])
+# ==========================================
+# 2. СИНХРОНІЗАЦІЯ З БІЛІНГОМ У РЕАЛЬНОМУ ЧАСІ
+# ==========================================
 
+@router.callback_query(F.data == "sync_utilities_now")
+async def cb_sync_utilities(callback: CallbackQuery, state: FSMContext):
+    """Примусове опитування міських баз даних"""
+    telegram_id = callback.from_user.id
+    
+    await callback.answer("🔄 Запитуємо нарахування у міських служб...")
+    
     async with async_session_maker() as session:
-        res = await session.execute(select(Bill).where(Bill.id == bill_id))
-        bill = res.scalar_one_or_none()
-        if not bill:
-            await callback.answer("Рахунок не знайдено.")
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
             return
 
-        apt_res = await session.execute(select(Apartment).where(Apartment.id == bill.apartment_id))
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
         apt = apt_res.scalar_one_or_none()
+        if apt:
+            await UtilityService.sync_apartment_utilities(session, apt.id)
+
+    # Оновлюємо екран
+    await cmd_unified_billing_hub(callback, state)
+
+
+# ==========================================
+# 3. ОПЛАТА ВСІХ РАХУНКІВ ОДРАЗУ В 1 КЛІК
+# ==========================================
+
+@router.callback_query(F.data.startswith("pay_all_unified_"))
+async def cb_confirm_pay_all(callback: CallbackQuery):
+    apt_id = int(callback.data.split("_")[3])
+
+    async with async_session_maker() as session:
+        summary = await UtilityService.get_unified_bill_summary(session, apt_id)
+        total = summary["total_to_pay"]
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="⚡️ Оплатити в 1 клік (Apple Pay / Monobank)",
-                    callback_data=f"confirm_pay_now_{bill.id}"
+                    text=f"⚡️ Підтвердити оплату {total:.2f} грн (Apple Pay / Mono)",
+                    callback_data=f"execute_pay_all_{apt_id}"
                 )
             ],
             [
-                InlineKeyboardButton(text="❌ Скасувати", callback_data="admin_back_main")
+                InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")
             ]
         ]
     )
 
-    desc_label = bill.description or "Утримання будинку та прибудинкової території"
     text = (
-        f"🔒 <b>Безпечна платіжна сесія DimUp Pay</b>\n\n"
-        f"📌 <b>Призначення:</b> {desc_label} ({bill.month}/{bill.year})\n"
-        f"🏢 <b>Квартира:</b> №{apt.number}\n"
-        f"💰 <b>Сума до сплати:</b> <b>{bill.amount:.2f} грн</b>\n\n"
-        f"Оберіть спосіб оплати нижче (комісія 0%):"
+        f"🔒 <b>Безпечний платіж: Єдина комунальна квитанція</b>\n\n"
+        f"🏢 <b>Квартира:</b> №{summary['apartment_number']}\n"
+        f"💰 <b>Загальна сума до списання:</b> <b>{total:.2f} грн</b>\n\n"
+        f"📦 <b>Склад пакету оплати:</b>\n"
     )
+    for item in summary["items"]:
+        if not item["is_paid"] and item["amount"] > 0:
+            text += f"• {item['title']}: <b>{item['amount']:.2f} грн</b>\n"
+
+    text += "\n<i>Кошти будуть автоматично розподілені на рахунки відповідних комунальних служб та ОСББ (Комісія 0%).</i>"
+
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
 
-@router.callback_query(F.data.startswith("confirm_pay_now_"))
-async def cb_confirm_payment(callback: CallbackQuery):
-    """Исполнение платежа и выдача официальной квитанции"""
-    bill_id = int(callback.data.split("_")[3])
+@router.callback_query(F.data.startswith("execute_pay_all_"))
+async def cb_execute_pay_all(callback: CallbackQuery):
+    apt_id = int(callback.data.split("_")[3])
+    tx_id = f"HUB-{uuid.uuid4().hex[:8].upper()}"
     now = datetime.now()
-    tx_id = f"DU-{uuid.uuid4().hex[:8].upper()}"
 
     async with async_session_maker() as session:
-        res = await session.execute(select(Bill).where(Bill.id == bill_id))
-        bill = res.scalar_one_or_none()
-        if not bill or bill.is_paid:
-            await callback.answer("Цей рахунок вже оплачено.")
-            return
-
-        apt_res = await session.execute(select(Apartment).where(Apartment.id == bill.apartment_id))
-        apt = apt_res.scalar_one_or_none()
-
-        bill.is_paid = True
-        bill.paid_at = now
-        bill.payment_method = "Monobank / Apple Pay"
-        bill.transaction_id = tx_id
+        paid_sum = await UtilityService.pay_all_utilities(session, apt_id)
         
-        # Обновляем баланс квартиры
-        apt.balance += bill.amount
-        await session.commit()
-        apt_num = apt.number
-        new_balance = apt.balance
-        desc_label = bill.description or "Внесок на утримання будинку"
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == apt_id))
+        apt = apt_res.scalar_one_or_none()
+        apt_num = apt.number if apt else "—"
 
     receipt_text = (
-        f"🧾 <b>ЕЛЕКТРОННА КВИТАНЦІЯ ПРО ОПЛАТУ</b>\n"
+        f"🧾 <b>ФІСКАЛЬНИЙ ЕЛЕКТРОННИЙ ЧЕК</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ <b>Статус:</b> Успішно проведено\n"
+        f"✅ <b>Статус:</b> Успішно сплачено всі служби\n"
         f"🆔 <b>Номер транзакції:</b> <code>{tx_id}</code>\n"
-        f"📅 <b>Дата та час:</b> {now.strftime('%d.%m.%Y %H:%M:%S')}\n"
+        f"📅 <b>Дата:</b> {now.strftime('%d.%m.%Y %H:%M:%S')}\n"
         f"🏢 <b>Квартира:</b> №{apt_num}\n"
-        f"💳 <b>Метод оплати:</b> Monobank / Apple Pay\n"
-        f"📌 <b>Призначення:</b> {desc_label} ({bill.month}/{bill.year})\n"
-        f"💰 <b>Сплачена сума:</b> <b>{bill.amount:.2f} грн</b>\n"
+        f"💳 <b>Метод:</b> Monobank / Apple Pay (Єдина квитанція)\n"
+        f"💰 <b>Загальна сума:</b> <b>{paid_sum:.2f} грн</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📊 <b>Оновлений баланс:</b> {new_balance:.2f} грн (Заборгованість погашена 🟢)\n\n"
-        f"<i>Дякуємо! Квитанція збережена в історії платежів вашого кабінету.</i>"
+        f"🎉 <b>Усі комунальні нарахування та внески ОСББ успішно погашено!</b>\n\n"
+        f"<i>Квитанція збережена в історії платежів.</i>"
     )
 
-    await callback.message.delete()
-    await callback.message.answer(receipt_text, reply_markup=get_main_menu_keyboard(), parse_mode="HTML")
+    back_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="📱 Повернутися до квитанції", callback_data="utility_hub_main")]]
+    )
+    await callback.message.edit_text(receipt_text, reply_markup=back_kb, parse_mode="HTML")
 
+
+# ==========================================
+# 4. ОПЛАТА ОКРЕМОЇ СЛУЖБИ
+# ==========================================
+
+@router.callback_query(F.data == "pay_separate_menu")
+async def cb_pay_separate_menu(callback: CallbackQuery):
+    telegram_id = callback.from_user.id
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        
+        summary = await UtilityService.get_unified_bill_summary(session, apt.id)
+
+    buttons = []
+    for item in summary["items"]:
+        if not item["is_paid"] and item["amount"] > 0:
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"{item['icon']} {item['title']} — {item['amount']:.2f} грн",
+                    callback_data=f"pay_one_service_{item['id']}"
+                )
+            ])
+
+    buttons.append([InlineKeyboardButton(text="🔙 Назад до єдиної квитанції", callback_data="utility_hub_main")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(
+        "🔍 <b>Оберіть окрему службу для оплати:</b>",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("pay_one_service_"))
+async def cb_pay_one_service(callback: CallbackQuery):
+    item_id = callback.data.replace("pay_one_service_", "")
+    now = datetime.now()
+    tx_id = f"SVC-{uuid.uuid4().hex[:8].upper()}"
+
+    async with async_session_maker() as session:
+        if item_id == "osbb":
+            # Оплачиваем ОСББ
+            telegram_id = callback.from_user.id
+            user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+            user = user_res.scalar_one_or_none()
+            apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+            apt = apt_res.scalar_one_or_none()
+            
+            bills_res = await session.execute(
+                select(Bill).where(Bill.apartment_id == apt.id, Bill.is_paid == False)
+            )
+            bills = bills_res.scalars().all()
+            for b in bills:
+                b.is_paid = True
+                b.paid_at = now
+            apt.balance = 0.0
+            await session.commit()
+            service_title = "Утримання будинку (ОСББ)"
+            amount = sum(b.amount for b in bills) if bills else 850.0
+        else:
+            acc_id = int(item_id.replace("util_", ""))
+            acc_res = await session.execute(select(UtilityAccount).where(UtilityAccount.id == acc_id))
+            acc = acc_res.scalar_one_or_none()
+            if acc:
+                acc.is_paid = True
+                service_title = acc.provider_name
+                amount = acc.last_amount
+                await session.commit()
+            else:
+                await callback.answer("Рахунок не знайдено.")
+                return
+
+    receipt_text = (
+        f"🧾 <b>КВИТАНЦІЯ ПРО ОПЛАТУ ПОСЛУГИ</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ <b>Статус:</b> Сплачено успішно\n"
+        f"📌 <b>Служба:</b> {service_title}\n"
+        f"💰 <b>Сплачена сума:</b> <b>{amount:.2f} грн</b>\n"
+        f"🆔 <b>ID транзакції:</b> <code>{tx_id}</code>\n"
+        f"📅 <b>Час:</b> {now.strftime('%d.%m.%Y %H:%M')}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    back_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="📱 До єдиної квитанції", callback_data="utility_hub_main")]]
+    )
+    await callback.message.edit_text(receipt_text, reply_markup=back_kb, parse_mode="HTML")
+
+
+# ==========================================
+# 5. КЕРУВАННЯ ОСОБОВИМИ РАХУНКАМИ (SETTINGS)
+# ==========================================
+
+@router.callback_query(F.data == "manage_accounts_list")
+async def cb_manage_accounts(callback: CallbackQuery):
+    telegram_id = callback.from_user.id
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        
+        accounts_res = await session.execute(
+            select(UtilityAccount).where(UtilityAccount.apartment_id == apt.id)
+        )
+        accounts = accounts_res.scalars().all()
+
+    text = (
+        "⚙️ <b>Керування особовими рахунками квартири</b>\n\n"
+        "Тут ви можете налаштувати або змінити номери ваших особових рахунків постачальників послуг:\n\n"
+    )
+
+    buttons = []
+    for acc in accounts:
+        cfg = PROVIDER_CATALOG.get(acc.provider_type, {})
+        icon = cfg.get("icon", "📄")
+        name = cfg.get("name", acc.provider_name)
+        text += f"• {icon} <b>{name}:</b> О/Р <code>{acc.account_number}</code>\n"
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"✏️ Змінити {name} ({acc.account_number})",
+                callback_data=f"edit_acc_{acc.id}"
+            ),
+            InlineKeyboardButton(
+                text="🗑",
+                callback_data=f"del_acc_{acc.id}"
+            )
+        ])
+
+    buttons.append([InlineKeyboardButton(text="➕ Додати новий особовий рахунок", callback_data="add_account_start")])
+    buttons.append([InlineKeyboardButton(text="🔙 Назад до квитанції", callback_data="utility_hub_main")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data == "add_account_start")
+async def cb_add_account_start(callback: CallbackQuery, state: FSMContext):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💡 Світло (YASNO / ДТЕК)", callback_data="set_prov_electricity"),
+                InlineKeyboardButton(text="🔥 Газ (Нафтогаз)", callback_data="set_prov_gas")
+            ],
+            [
+                InlineKeyboardButton(text="🚰 Вода (Водоканал)", callback_data="set_prov_water"),
+                InlineKeyboardButton(text="♨️ Опалення (Тепло)", callback_data="set_prov_heating")
+            ],
+            [
+                InlineKeyboardButton(text="🌐 Інтернет", callback_data="set_prov_internet"),
+                InlineKeyboardButton(text="🧹 Вивіз відходів", callback_data="set_prov_waste")
+            ],
+            [
+                InlineKeyboardButton(text="❌ Скасувати", callback_data="manage_accounts_list")
+            ]
+        ]
+    )
+    await callback.message.edit_text(
+        "➕ <b>Додавання особового рахунку</b>\n\nОберіть тип комунальної служби:",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("set_prov_"))
+async def cb_set_provider(callback: CallbackQuery, state: FSMContext):
+    prov_str = callback.data.replace("set_prov_", "")
+    prov_type = UtilityProviderType(prov_str)
+    cfg = PROVIDER_CATALOG.get(prov_type, {})
+    
+    await state.update_data(chosen_provider=prov_type.value, chosen_name=cfg.get("full_name", "Служба"))
+    
+    await callback.message.delete()
+    await callback.message.answer(
+        f"📝 Служба: <b>{cfg.get('full_name')}</b>\n\n"
+        f"Введіть <b>номер вашого особового рахунку (О/Р)</b> з паперової квитанції або договору:\n"
+        f"<i>(Наприклад: <code>{cfg.get('default_acc_prefix', '12')}345678</code>)</i>",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML"
+    )
+    await state.set_state(UtilityAccountState.waiting_for_account_number)
+
+
+@router.message(UtilityAccountState.waiting_for_account_number, F.text)
+async def process_account_number(message: Message, state: FSMContext):
+    acc_num = message.text.strip().replace(" ", "")
+    if len(acc_num) < 3:
+        await message.answer("⚠️ Номер особового рахунку занадто короткий. Введіть коректний номер:")
+        return
+
+    data = await state.get_data()
+    prov_type_str = data.get("chosen_provider", "electricity")
+    prov_name = data.get("chosen_name", "Міська служба")
+    telegram_id = message.from_user.id
+
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+
+        prov_type = UtilityProviderType(prov_type_str)
+
+        # Перевіряємо чи є вже такий рахунок
+        exist_res = await session.execute(
+            select(UtilityAccount).where(
+                UtilityAccount.apartment_id == apt.id,
+                UtilityAccount.provider_type == prov_type
+            )
+        )
+        exist_acc = exist_res.scalar_one_or_none()
+        if exist_acc:
+            exist_acc.account_number = acc_num
+            exist_acc.provider_name = prov_name
+        else:
+            new_acc = UtilityAccount(
+                apartment_id=apt.id,
+                provider_type=prov_type,
+                provider_name=prov_name,
+                account_number=acc_num,
+                last_amount=0.0,
+                is_paid=False
+            )
+            session.add(new_acc)
+
+        await session.commit()
+        
+        # Синхронізуємо нарахування
+        await UtilityService.sync_apartment_utilities(session, apt.id)
+
+    await state.clear()
+    
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="📱 Переглянути єдину квитанцію", callback_data="utility_hub_main")]]
+    )
+    await message.answer(
+        f"✅ <b>Особовий рахунок успішно збережено!</b>\n\n"
+        f"📌 <b>Служба:</b> {prov_name}\n"
+        f"🔢 <b>Номер О/Р:</b> <code>{acc_num}</code>\n\n"
+        f"<i>Дані автоматично синхронізовано з базою нарахувань.</i>",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("del_acc_"))
+async def cb_del_account(callback: CallbackQuery):
+    acc_id = int(callback.data.split("_")[2])
+    async with async_session_maker() as session:
+        res = await session.execute(select(UtilityAccount).where(UtilityAccount.id == acc_id))
+        acc = res.scalar_one_or_none()
+        if acc:
+            await session.delete(acc)
+            await session.commit()
+            await callback.answer("Особовий рахунок видалено.")
+        else:
+            await callback.answer("Рахунок не знайдено.")
+
+    await cb_manage_accounts(callback)
+
+
+# ==========================================
+# 6. РЕКВІЗИТИ IBAN
+# ==========================================
 
 @router.callback_query(F.data == "pay_iban_info")
 async def cb_pay_iban(callback: CallbackQuery):
@@ -181,6 +484,6 @@ async def cb_pay_iban(callback: CallbackQuery):
         "<i>Після оплати кошти зараховуються на рахунок будинку протягом 1 банківського дня.</i>"
     )
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="pay_bills_start")]]
+        inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад до квитанції", callback_data="utility_hub_main")]]
     )
     await callback.message.edit_text(iban_text, reply_markup=kb, parse_mode="HTML")

@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import async_session_maker
 from app.db.models import Apartment, Bill, Poll, PollOption, Ticket
+from app.services.utility_service import UtilityService
 
 router = APIRouter()
 
@@ -26,11 +27,15 @@ async def render_webapp(request: Request, apt_num: int = 1):
 
         # Получаем начисления (Bills)
         bills = []
+        unified_summary = None
         if apartment:
             bills_res = await session.execute(
                 select(Bill).where(Bill.apartment_id == apartment.id)
             )
             bills = bills_res.scalars().all()
+            
+            # Отримуємо повну єдину квитанцію міських служб
+            unified_summary = await UtilityService.get_unified_bill_summary(session, apartment.id)
 
         # Получаем активные опросы вместе с вариантами и голосами (полный Eager Load)
         polls_res = await session.execute(
@@ -54,6 +59,7 @@ async def render_webapp(request: Request, apt_num: int = 1):
         {
             "apt": apartment,
             "bills": bills,
+            "unified_summary": unified_summary,
             "polls": polls,
             "tickets": tickets
         }

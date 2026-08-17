@@ -53,6 +53,15 @@ class ServiceOrderStatus(str, enum.Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
+class UtilityProviderType(str, enum.Enum):
+    ELECTRICITY = "electricity"  # YASNO / ДТЕК
+    GAS = "gas"                  # ГК «Нафтогаз України»
+    WATER = "water"              # Київводоканал / Міськводоканал
+    HEATING = "heating"          # Київтеплоенерго / Теплокомуненерго
+    WASTE = "waste"              # Вивіз побутових відходів
+    INTERNET = "internet"        # Інтернет та ТБ
+    OTHER = "other"
+
 
 # ==========================================
 # 2. ТАБЛИЦЫ БАЗЫ ДАННЫХ (ORM МОДЕЛИ)
@@ -93,6 +102,27 @@ class Apartment(Base):
     bills: Mapped[List["Bill"]] = relationship("Bill", back_populates="apartment")
     meter_readings: Mapped[List["MeterReading"]] = relationship("MeterReading", back_populates="apartment")
     service_orders: Mapped[List["ServiceOrder"]] = relationship("ServiceOrder", back_populates="apartment")
+    utility_accounts: Mapped[List["UtilityAccount"]] = relationship("UtilityAccount", back_populates="apartment", cascade="all, delete-orphan")
+
+
+class UtilityAccount(Base):
+    """Прив'язка особових рахунків міських комунальних служб до квартири"""
+    __tablename__ = "utility_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    apartment_id: Mapped[int] = mapped_column(ForeignKey("apartments.id"), nullable=False)
+    provider_type: Mapped[UtilityProviderType] = mapped_column(SQLEnum(UtilityProviderType), default=UtilityProviderType.ELECTRICITY)
+    provider_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    account_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    
+    last_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    is_paid: Mapped[bool] = mapped_column(Boolean, default=False)
+    details: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    apartment: Mapped["Apartment"] = relationship("Apartment", back_populates="utility_accounts")
 
 
 class Ticket(Base):

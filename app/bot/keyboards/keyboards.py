@@ -17,11 +17,12 @@ def get_main_menu_keyboard(role: UserRole = UserRole.RESIDENT) -> ReplyKeyboardM
             KeyboardButton(text="📱 Кабінет")
         ],
         [
+            KeyboardButton(text="💳 Рахунки / Оплата"),
             KeyboardButton(text="🛠 Послуги майстрів"),
-            KeyboardButton(text="🗳 Опитування"),
-            KeyboardButton(text="📢 Новини")
+            KeyboardButton(text="🗳 Опитування")
         ],
         [
+            KeyboardButton(text="📢 Новини"),
             KeyboardButton(text="👤 Профіль")
         ]
     ]

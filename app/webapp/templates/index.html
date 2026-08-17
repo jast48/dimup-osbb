@@ -26,38 +26,42 @@
         <section id="tab-finance" class="tab-content active">
             <!-- Hero Balance Card -->
             <div class="hero-card">
-                <div class="hero-label">Поточний баланс квартири</div>
+                <div class="hero-label">Загальна сума до сплати по квартирі</div>
                 <div class="hero-amount">
-                    <span>{{ '%.2f'|format(apt.balance|abs if apt else 0.0) }}</span>
+                    <span>{{ '%.2f'|format(unified_summary.total_to_pay if unified_summary else (apt.balance|abs if apt else 0.0)) }}</span>
                     <span class="hero-currency">грн</span>
                 </div>
                 <div>
-                    {% if apt and apt.balance < 0 %}
-                        <span class="hero-status status-negative">🔴 Заборгованість до сплати</span>
+                    {% if unified_summary and unified_summary.total_to_pay > 0 %}
+                        <span class="hero-status status-negative">🔴 Очікує оплати ({{ unified_summary.unpaid_count }} служб)</span>
                     {% else %}
-                        <span class="hero-status status-positive">🟢 Оплачено / Без боргів</span>
+                        <span class="hero-status status-positive">🟢 Усі рахунки сплачено ✅</span>
                     {% endif %}
                 </div>
                 
                 <button class="btn-pay" onclick="handlePayment()">
-                    💳 Оплатити карткою онлайн
+                    ⚡️ Сплатити всі комунальні послуги онлайн
                 </button>
             </div>
 
-            <!-- Bills History -->
-            <div class="section-title">📄 Останні нарахування</div>
-            <div class="card">
-                {% if bills %}
-                    {% for bill in bills %}
-                    <div class="bill-row">
+            <!-- Unified Utility Services Breakdown -->
+            <div class="section-title">📊 Єдина квитанція (Міські служби)</div>
+            <div class="card" style="padding: 6px 14px;">
+                {% if unified_summary and unified_summary.items %}
+                    {% for item in unified_summary.items %}
+                    <div class="bill-row" style="padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
                         <div>
-                            <div class="bill-month">{{ bill.description if bill.description else 'Утримання будинку' }}</div>
-                            <div class="bill-date">Місяць {{ bill.month }}/{{ bill.year }}</div>
+                            <div class="bill-month" style="display: flex; align-items: center; gap: 6px;">
+                                <span>{{ item.icon }}</span> <b>{{ item.title }}</b>
+                            </div>
+                            <div class="bill-date" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                                О/Р: <code>{{ item.account_number }}</code> • {{ item.details }}
+                            </div>
                         </div>
-                        <div style="text-align: right;">
-                            <div class="bill-price">{{ bill.amount }} грн</div>
-                            <div style="font-size: 11px; color: {{ '#10b981' if bill.is_paid else '#f43f5e' }};">
-                                {{ 'Сплачено ✅' if bill.is_paid else 'Очікує оплати ⏳' }}
+                        <div style="text-align: right; min-width: 90px;">
+                            <div class="bill-price" style="font-weight: 700; font-size: 14px;">{{ '%.2f'|format(item.amount) }} грн</div>
+                            <div style="font-size: 11px; font-weight: 600; color: {{ '#10b981' if item.is_paid else '#f43f5e' }};">
+                                {{ 'Сплачено ✅' if item.is_paid else 'До сплати ⏳' }}
                             </div>
                         </div>
                     </div>
