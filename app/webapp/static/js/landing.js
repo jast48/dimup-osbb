@@ -137,7 +137,28 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCalculator();
   }
 
-  // 4. FAQ Accordion
+  // 4. Marketplace Category Filter
+  const mktFilterBtns = document.querySelectorAll('.mkt-filter-btn');
+  const mktCards = document.querySelectorAll('.mkt-card');
+
+  mktFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      mktFilterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cat = btn.getAttribute('data-cat');
+
+      mktCards.forEach(card => {
+        const cardCat = card.getAttribute('data-cat');
+        if (cat === 'all' || cardCat === cat) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+
+  // 5. FAQ Accordion
   const faqQuestions = document.querySelectorAll('.faq-question');
   faqQuestions.forEach(q => {
     q.addEventListener('click', () => {

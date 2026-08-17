@@ -626,6 +626,159 @@ h1, h2, h3, h4, .brand-logo {
   line-height: 1.6;
 }
 
+/* Marketplace Section Styles */
+.mkt-filters {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.mkt-filter-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.mkt-filter-btn:hover, .mkt-filter-btn.active {
+  background: rgba(0, 240, 255, 0.12);
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 20px var(--primary-glow);
+  transform: translateY(-2px);
+}
+
+.mkt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 50px;
+}
+
+.mkt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.mkt-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(0, 240, 255, 0.35);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 25px rgba(0, 240, 255, 0.15);
+}
+
+.mkt-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.mkt-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+}
+
+.mkt-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #ffb800;
+  background: rgba(255, 184, 0, 0.1);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 184, 0, 0.25);
+}
+
+.mkt-service-title {
+  font-size: 1.25rem;
+  margin-bottom: 8px;
+}
+
+.mkt-service-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.mkt-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mkt-price {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  color: var(--accent-emerald);
+}
+
+.mkt-master-badge {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.mkt-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-xl);
+  padding: 36px;
+}
+
+.mkt-benefit-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.mkt-benefit-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.mkt-benefit-title {
+  font-size: 1.15rem;
+  margin-bottom: 6px;
+  font-family: var(--font-heading);
+}
+
+.mkt-benefit-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 /* Calculator Section */
 .calc-card {
   background: linear-gradient(135deg, rgba(14, 22, 39, 0.9) 0%, rgba(20, 10, 40, 0.85) 100%);

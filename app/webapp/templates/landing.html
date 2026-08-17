@@ -29,6 +29,7 @@
 
       <ul class="nav-menu">
         <li><a href="#features" class="nav-link">Можливості</a></li>
+        <li><a href="#marketplace" class="nav-link">Маркетплейс</a></li>
         <li><a href="#simulator" class="nav-link">Інтерактивне Демо</a></li>
         <li><a href="#calculator" class="nav-link">Калькулятор Економії</a></li>
         <li><a href="#pricing" class="nav-link">Тарифи</a></li>
@@ -197,6 +198,154 @@
           <h3 class="feature-title">Безпека та Верифікація</h3>
           <p class="feature-desc">Дворівневий захист доступу: тільки підтверджені мешканці та власники мають доступ до чату будинку, сплат та голосувань.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Marketplace Section -->
+  <section id="marketplace" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Локальна Екосистема Послуг</div>
+        <h2 class="section-title">Маркетплейс Перевірених <br><span class="gradient-text">Майстрів Будинку</span></h2>
+        <p class="section-desc">Більше не потрібно шукати контакти в сумнівних чатах. Всі надійні спеціалісти — від сантехніка до клінінгу — доступні в 1 клік прямо в боті.</p>
+      </div>
+
+      <!-- Category Filter Chips -->
+      <div class="mkt-filters">
+        <button class="mkt-filter-btn active" data-cat="all">✨ Усі послуги</button>
+        <button class="mkt-filter-btn" data-cat="plumbing">🚰 Сантехніка</button>
+        <button class="mkt-filter-btn" data-cat="electricity">💡 Електрика</button>
+        <button class="mkt-filter-btn" data-cat="cleaning">🧹 Клінінг</button>
+        <button class="mkt-filter-btn" data-cat="climate">❄️ Кондиціонери</button>
+        <button class="mkt-filter-btn" data-cat="doors">🔑 Двері та замки</button>
+      </div>
+
+      <!-- Marketplace Cards Grid -->
+      <div class="mkt-grid">
+        <!-- Card 1 -->
+        <div class="mkt-card" data-cat="plumbing">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🚰</div>
+              <div class="mkt-rating">⭐ 4.95 (128)</div>
+            </div>
+            <h3 class="mkt-service-title">Заміна змішувача / крана</h3>
+            <p class="mkt-service-desc">Демонтаж старого та професійне встановлення нового змішувача з герметизацією з'єднань.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 350 грн</div>
+            <div class="mkt-master-badge">👷‍♂️ Сергій М. (~45 хв)</div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="mkt-card" data-cat="electricity">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">💡</div>
+              <div class="mkt-rating">⭐ 4.98 (94)</div>
+            </div>
+            <h3 class="mkt-service-title">Встановлення розеток та вимикачів</h3>
+            <p class="mkt-service-desc">Заміна фурнітури, монтаж підрозетників, перевірка фази та навантаження електромережі.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 150 грн/точка</div>
+            <div class="mkt-master-badge">👷‍♂️ Андрій К. (~30 хв)</div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="mkt-card" data-cat="climate">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">❄️</div>
+              <div class="mkt-rating">⭐ 4.96 (82)</div>
+            </div>
+            <h3 class="mkt-service-title">Чистка та дезінфекція кондиціонера</h3>
+            <p class="mkt-service-desc">Глибока антибактеріальна обробка парогенератором, чистка фільтрів та перевірка тиску фреону.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 650 грн</div>
+            <div class="mkt-master-badge">🛠 Клімат-Експерт (~1 год)</div>
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="mkt-card" data-cat="cleaning">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🧹</div>
+              <div class="mkt-rating">⭐ 4.92 (65)</div>
+            </div>
+            <h3 class="mkt-service-title">Генеральне прибирання квартири</h3>
+            <p class="mkt-service-desc">Комплексний клінінг кімнат, санвузлів, миття поверхонь професійною безпечною хімією.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 1 200 грн</div>
+            <div class="mkt-master-badge">✨ Чистий Дім (~3 год)</div>
+          </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="mkt-card" data-cat="doors">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🔑</div>
+              <div class="mkt-rating">⭐ 5.00 (43)</div>
+            </div>
+            <h3 class="mkt-service-title">Врізка та заміна дверного замка</h3>
+            <p class="mkt-service-desc">Оперативна заміна серцевини (циліндра), регулювання дверних петель та замкових механізмів.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 450 грн</div>
+            <div class="mkt-master-badge">🔐 Лок-Майстер (~40 хв)</div>
+          </div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="mkt-card" data-cat="plumbing">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🚰</div>
+              <div class="mkt-rating">⭐ 4.97 (110)</div>
+            </div>
+            <h3 class="mkt-service-title">Монтаж та підключення бойлера</h3>
+            <p class="mkt-service-desc">Навішування, підведення труб водопостачання, монтаж зворотного клапана та запуск.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 800 грн</div>
+            <div class="mkt-master-badge">👷‍♂️ Сергій М. (~2 год)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 Value Pillars -->
+      <div class="mkt-benefits-grid">
+        <div class="mkt-benefit-item">
+          <div class="mkt-benefit-icon">🏠</div>
+          <div>
+            <h4 class="mkt-benefit-title">Для Мешканців</h4>
+            <p class="mkt-benefit-desc">Перевірені майстри вашого будинку, чесні оцінки сусідів та фіксовані прозорі тарифи без посередників.</p>
+          </div>
+        </div>
+
+        <div class="mkt-benefit-item">
+          <div class="mkt-benefit-icon">🛠</div>
+          <div>
+            <h4 class="mkt-benefit-title">Для Майстрів</h4>
+            <p class="mkt-benefit-desc">Постійний потік замовлень поруч з домом. Отримання заявок у Telegram за 1 секунду та нуль витрат на рекламу.</p>
+          </div>
+        </div>
+
+        <div class="mkt-benefit-item">
+          <div class="mkt-benefit-icon">🏢</div>
+          <div>
+            <h4 class="mkt-benefit-title">Для Правління ОСББ</h4>
+            <p class="mkt-benefit-desc">Єдиний офіційний реєстр акредитованих підрядників, гарантія безпеки та порядок у будинку.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
