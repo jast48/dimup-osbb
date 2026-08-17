@@ -373,7 +373,7 @@ async def cb_resident_profile_back(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "resident_my_tickets")
-@router.message(F.text.contains("Мої заявки") | F.text.contains("мої заявки"))
+@router.message(F.text.contains("Мої заявки") | F.text.contains("мої заявки") | F.text.contains("Мои заявки") | F.text.contains("мои заявки"))
 async def cb_resident_my_tickets(event: Message | CallbackQuery):
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -430,36 +430,33 @@ async def cb_resident_my_tickets(event: Message | CallbackQuery):
         TicketStatus.CANCELLED: "❌ Відхилено"
     }
 
-    if isinstance(event, CallbackQuery):
-        try:
-            await event.message.delete()
-        except Exception:
-            pass
-
-    await message.answer(f"📋 <b>Ваші створені заявки ({len(tickets_data)}):</b>\n━━━━━━━━━━━━━━━━━━━━━━", parse_mode="HTML")
-
+    full_text = f"📋 <b>Ваші створені заявки ({len(tickets_data)}):</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
     for t, master_name in tickets_data:
         voice_status = "✅ Є аудіо" if t.audio_file_id else "📝 Текст"
         photo_status = "✅ Додано" if t.photo_file_id else "❌ Немає"
         master_line = f"\n👷‍♂️ <b>Призначений майстер:</b> {master_name}" if master_name else ""
 
-        card_text = (
+        full_text += (
             f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status, '🛠 В роботі')}]\n"
-            f"📅 <b>Дата створення:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}{master_line}\n\n"
-            f"📝 <b>Опис проблеми:</b>\n{t.description}\n"
+            f"📅 <b>Дата:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}{master_line}\n"
+            f"📝 <b>Опис:</b> {t.description}\n"
         )
         if t.ai_summary:
-            card_text += f"\n💡 <b>AI підсумок:</b> <i>{t.ai_summary}</i>\n"
+            full_text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
+        full_text += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        media_row = [
-            InlineKeyboardButton(text="📄 Текст заявки", callback_data=f"show_ticket_text_{t.id}"),
-            InlineKeyboardButton(text="🎙 Голосове", callback_data=f"show_ticket_voice_{t.id}"),
-            InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}")
-        ]
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="🔙 До профілю", callback_data="resident_profile_back")]]
+    )
 
-        kb = InlineKeyboardMarkup(inline_keyboard=[media_row])
-        await message.answer(card_text, reply_markup=kb, parse_mode="HTML")
+    if isinstance(event, CallbackQuery):
+        try:
+            await event.message.edit_text(full_text, reply_markup=kb, parse_mode="HTML")
+        except Exception:
+            await event.message.answer(full_text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await message.answer(full_text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(F.text.contains("Панель правління"))
