@@ -18,6 +18,9 @@ async def render_webapp(request: Request, apt_num: int = 1):
     """
     Отображение личного кабинета жителя в Telegram WebApp
     """
+    # Валідація та обмеження номеру квартири
+    apt_num = max(1, min(int(apt_num), 9999))
+
     async with async_session_maker() as session:
         # Получаем данные квартиры
         apt_res = await session.execute(

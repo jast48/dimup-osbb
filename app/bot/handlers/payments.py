@@ -432,9 +432,23 @@ async def cb_sync_utilities(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("pay_all_unified_"))
 async def cb_confirm_pay_all(callback: CallbackQuery):
+    await callback.answer()
     apt_id = int(callback.data.split("_")[3])
+    telegram_id = callback.from_user.id
 
     async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("⚠️ Користувача не знайдено.", show_alert=True)
+            return
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == apt_id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt or (apt.resident_id != user.id and user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]):
+            await callback.answer("⛔️ Доступ заборонено: це не ваша квартира.", show_alert=True)
+            return
+
         summary = await UtilityService.get_unified_bill_summary(session, apt_id)
         total = summary["total_to_pay"]
 
@@ -469,15 +483,26 @@ async def cb_confirm_pay_all(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("execute_pay_all_"))
 async def cb_execute_pay_all(callback: CallbackQuery):
+    await callback.answer()
     apt_id = int(callback.data.split("_")[3])
+    telegram_id = callback.from_user.id
     tx_id = f"HUB-{uuid.uuid4().hex[:8].upper()}"
     now = datetime.now()
 
     async with async_session_maker() as session:
-        paid_sum = await UtilityService.pay_all_utilities(session, apt_id)
-        
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("⚠️ Користувача не знайдено.", show_alert=True)
+            return
+
         apt_res = await session.execute(select(Apartment).where(Apartment.id == apt_id))
         apt = apt_res.scalar_one_or_none()
+        if not apt or (apt.resident_id != user.id and user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]):
+            await callback.answer("⛔️ Доступ заборонено: це не ваша квартира.", show_alert=True)
+            return
+
+        paid_sum = await UtilityService.pay_all_utilities(session, apt_id)
         apt_num = apt.number if apt else "—"
 
     receipt_text = (
@@ -506,6 +531,7 @@ async def cb_execute_pay_all(callback: CallbackQuery):
 
 @router.callback_query(F.data == "pay_separate_menu")
 async def cb_pay_separate_menu(callback: CallbackQuery):
+    await callback.answer()
     telegram_id = callback.from_user.id
     async with async_session_maker() as session:
         user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
@@ -513,6 +539,9 @@ async def cb_pay_separate_menu(callback: CallbackQuery):
         
         apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
         apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await callback.answer("Квартиру не знайдено.", show_alert=True)
+            return
         
         summary = await UtilityService.get_unified_bill_summary(session, apt.id)
 
@@ -538,18 +567,26 @@ async def cb_pay_separate_menu(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("pay_one_service_"))
 async def cb_pay_one_service(callback: CallbackQuery):
+    await callback.answer()
     item_id = callback.data.replace("pay_one_service_", "")
+    telegram_id = callback.from_user.id
     now = datetime.now()
     tx_id = f"SVC-{uuid.uuid4().hex[:8].upper()}"
 
     async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("Користувача не знайдено.", show_alert=True)
+            return
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await callback.answer("Квартиру не знайдено.", show_alert=True)
+            return
+
         if item_id == "osbb":
-            telegram_id = callback.from_user.id
-            user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
-            user = user_res.scalar_one_or_none()
-            apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
-            apt = apt_res.scalar_one_or_none()
-            
             bills_res = await session.execute(
                 select(Bill).where(Bill.apartment_id == apt.id, Bill.is_paid == False)
             )
@@ -563,7 +600,12 @@ async def cb_pay_one_service(callback: CallbackQuery):
             amount = sum(b.amount for b in bills) if bills else 850.0
         else:
             acc_id = int(item_id.replace("util_", ""))
-            acc_res = await session.execute(select(UtilityAccount).where(UtilityAccount.id == acc_id))
+            acc_res = await session.execute(
+                select(UtilityAccount).where(
+                    UtilityAccount.id == acc_id,
+                    UtilityAccount.apartment_id == apt.id  # Захист IDOR: тільки рахунок своєї квартири
+                )
+            )
             acc = acc_res.scalar_one_or_none()
             if acc:
                 acc.is_paid = True
@@ -571,7 +613,7 @@ async def cb_pay_one_service(callback: CallbackQuery):
                 amount = acc.last_amount
                 await session.commit()
             else:
-                await callback.answer("Рахунок не знайдено.")
+                await callback.answer("Рахунок не знайдено або доступ заборонено.", show_alert=True)
                 return
 
     receipt_text = (
@@ -761,15 +803,35 @@ async def process_account_number(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("del_acc_"))
 async def cb_del_account(callback: CallbackQuery):
     acc_id = int(callback.data.split("_")[2])
+    telegram_id = callback.from_user.id
+
     async with async_session_maker() as session:
-        res = await session.execute(select(UtilityAccount).where(UtilityAccount.id == acc_id))
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("Користувача не знайдено.", show_alert=True)
+            return
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await callback.answer("Квартиру не знайдено.", show_alert=True)
+            return
+
+        res = await session.execute(
+            select(UtilityAccount).where(
+                UtilityAccount.id == acc_id,
+                UtilityAccount.apartment_id == apt.id  # Захист IDOR: видалення тільки свого рахунку
+            )
+        )
         acc = res.scalar_one_or_none()
         if acc:
             await session.delete(acc)
             await session.commit()
             await callback.answer("Особовий рахунок видалено.")
         else:
-            await callback.answer("Рахунок не знайдено.")
+            await callback.answer("Рахунок не знайдено або доступ заборонено.", show_alert=True)
+            return
 
     await cb_manage_accounts(callback)
 

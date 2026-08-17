@@ -146,11 +146,11 @@ class UtilityService:
         full_name = cfg.get("full_name", "Міська служба")
         icon = cfg.get("icon", "📄")
 
-        # Перевірка формату (тільки цифри, достатня довжина)
-        if not acc_clean.isdigit() or len(acc_clean) < 4:
+        # Перевірка формату (тільки цифри, від 4 до 16 знаків)
+        if not acc_clean.isdigit() or len(acc_clean) < 4 or len(acc_clean) > 16:
             return {
                 "is_valid": False,
-                "error_message": "⚠️ Номер особового рахунку повинен складатись тільки з цифр (від 4 до 16 цифр)."
+                "error_message": "⚠️ Номер особового рахунку повинен містити тільки цифри (від 4 до 16 знаків)."
             }
 
         # Отримуємо розрахунок
