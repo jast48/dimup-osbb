@@ -349,7 +349,10 @@ async def cb_master_accept_order(callback: CallbackQuery, bot: Bot):
     elif client and client.telegram_id:
         buttons.append([InlineKeyboardButton(text="💬 Написати клієнту", url=f"tg://user?id={client.telegram_id}")])
 
-    buttons.append([InlineKeyboardButton(text="🏁 Роботу виконано", callback_data=f"master_complete_order_{order_id}")])
+    buttons.append([
+        InlineKeyboardButton(text="🏁 Роботу виконано", callback_data=f"master_complete_order_{order_id}"),
+        InlineKeyboardButton(text="❌ Відмовитися", callback_data=f"master_cancel_order_{order_id}")
+    ])
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     card_text = (
@@ -388,6 +391,64 @@ async def cb_master_accept_order(callback: CallbackQuery, bot: Bot):
             )
         except Exception as e:
             logger.debug("Failed to notify resident: %s", e)
+
+
+@router.callback_query(F.data.startswith("master_decline_order_"))
+async def cb_master_decline_order(callback: CallbackQuery):
+    """Відхилення нового замовлення майстром з переліку нових"""
+    await callback.answer("Замовлення відхилено.")
+    order_id = int(callback.data.split("_")[3])
+    await callback.message.edit_text(
+        f"❌ <b>Замовлення №{order_id:04d} відхилено вами.</b>\n"
+        f"Воно залишається доступним для інших фахівців будинку.",
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("master_cancel_order_"))
+async def cb_master_cancel_active_order(callback: CallbackQuery, bot: Bot):
+    """Відмова від вже прийнятого активного замовлення (повернення в пул заявок)"""
+    order_id = int(callback.data.split("_")[3])
+    telegram_id = callback.from_user.id
+
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        master = user_res.scalar_one_or_none()
+
+        order_res = await session.execute(select(ServiceOrder).where(ServiceOrder.id == order_id))
+        order = order_res.scalar_one_or_none()
+
+        if order and order.assigned_contractor_id == master.id:
+            order.status = ServiceOrderStatus.PENDING
+            order.assigned_contractor_id = None
+            await session.commit()
+
+            client_res = await session.execute(select(User).where(User.id == order.user_id))
+            client = client_res.scalar_one_or_none()
+        else:
+            await callback.answer("Замовлення не знайдено.")
+            return
+
+    await callback.answer("Ви відмовилися від виконання замовлення.")
+    await callback.message.edit_text(
+        f"⚠️ <b>Ви відмовилися від виконання замовлення №{order_id:04d}.</b>\n"
+        f"Замовлення повернуто до списку нових заявок для інших майстрів.",
+        parse_mode="HTML"
+    )
+
+    if client and client.telegram_id:
+        try:
+            await bot.send_message(
+                chat_id=client.telegram_id,
+                text=(
+                    f"ℹ️ <b>Оновлення по замовленню №{order_id:04d}:</b>\n\n"
+                    f"Майстер не зміг взяти заявку через термінове навантаження. "
+                    f"Замовлення передано іншим черговим майстрам будинку."
+                ),
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
 
 
 @router.callback_query(F.data.startswith("master_complete_order_"))
