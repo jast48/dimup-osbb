@@ -13,6 +13,9 @@ from app.db.models import (
     PollVote,
     Bill,
     Ticket,
+    TicketStatus,
+    ServiceOrder,
+    ServiceOrderStatus,
     MeterReading,
     UserRole
 )
@@ -387,8 +390,9 @@ async def cb_resident_my_tickets(event: Message | CallbackQuery):
             await message.answer("⚠️ Будь ласка, спочатку запустіть /start для реєстрації.")
             return
 
+        # 1. Заявки до ОСББ
         tickets_res = await session.execute(
-            select(Ticket).where(Ticket.creator_id == user.id).order_by(desc(Ticket.created_at)).limit(10)
+            select(Ticket).where(Ticket.creator_id == user.id).order_by(desc(Ticket.created_at)).limit(5)
         )
         tickets = tickets_res.scalars().all()
 
@@ -402,17 +406,24 @@ async def cb_resident_my_tickets(event: Message | CallbackQuery):
                     master_name = m_obj.full_name
             tickets_data.append((t, master_name))
 
-    if not tickets_data:
+        # 2. Замовлення платних послуг з маркетплейсу
+        orders_res = await session.execute(
+            select(ServiceOrder).where(ServiceOrder.user_id == user.id).order_by(desc(ServiceOrder.created_at)).limit(5)
+        )
+        service_orders = orders_res.scalars().all()
+
+    if not tickets_data and not service_orders:
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 До профілю", callback_data="resident_profile_back")]
             ]
         )
         empty_text = (
-            "📋 <b>МОЇ ЗАЯВКИ ДО ПРАВЛІННЯ / ДИСПЕТЧЕРА</b>\n"
+            "📋 <b>МОЇ ЗАЯВКИ ТА ЗАМОВЛЕННЯ</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "У вас наразі немає створених заявок на обслуговування.\n\n"
-            "<i>Щоб створити нову заявку за допомогою штучного інтелекту або голосу, натисніть кнопку «🔧 Заявка (AI)» у нижньому меню!</i>"
+            "У вас наразі немає створених заявок чи замовлень майстрів.\n\n"
+            "• Щоб подати заявку до ОСББ, натисніть <b>«🔧 Заявка (AI)»</b>\n"
+            "• Щоб викликати майстра, натисніть <b>«🛠 Послуги майстрів»</b>"
         )
         if isinstance(event, CallbackQuery):
             try:
@@ -430,20 +441,39 @@ async def cb_resident_my_tickets(event: Message | CallbackQuery):
         TicketStatus.CANCELLED: "❌ Відхилено"
     }
 
-    full_text = f"📋 <b>Ваші створені заявки ({len(tickets_data)}):</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    for t, master_name in tickets_data:
-        voice_status = "✅ Є аудіо" if t.audio_file_id else "📝 Текст"
-        photo_status = "✅ Додано" if t.photo_file_id else "❌ Немає"
-        master_line = f"\n👷‍♂️ <b>Призначений майстер:</b> {master_name}" if master_name else ""
+    order_status_badges = {
+        ServiceOrderStatus.PENDING: "⏳ Очікує підтвердження",
+        ServiceOrderStatus.CONFIRMED: "✅ Прийнято в роботу",
+        ServiceOrderStatus.COMPLETED: "🎉 Виконано",
+        ServiceOrderStatus.CANCELLED: "❌ Скасовано"
+    }
 
-        full_text += (
-            f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status, '🛠 В роботі')}]\n"
-            f"📅 <b>Дата:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}{master_line}\n"
-            f"📝 <b>Опис:</b> {t.description}\n"
-        )
-        if t.ai_summary:
-            full_text += f"💡 <b>AI порада:</b> <i>{t.ai_summary}</i>\n"
+    full_text = "📋 <b>ВАШІ АКТИВНІ ТА МИНУЛІ ЗВЕРНЕННЯ:</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    # Виводимо замовлення маркетплейсу
+    if service_orders:
+        full_text += "🛠 <b>Замовлення послуг майстрів:</b>\n"
+        for o in service_orders:
+            st = order_status_badges.get(o.status, "В обробці")
+            date_str = o.created_at.strftime('%d.%m %H:%M') if o.created_at else ""
+            full_text += (
+                f"🏷 <b>Замовлення №{o.id:04d}</b> [{st}]\n"
+                f"• <b>Послуга:</b> {o.service_title}\n"
+                f"• <b>Час:</b> {o.preferred_time or 'Не вказано'}\n"
+                f"• <b>Сума:</b> {o.price_est:.2f} грн ({date_str})\n\n"
+            )
+        full_text += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    # Виводимо заявки ОСББ
+    if tickets_data:
+        full_text += "🎫 <b>Заявки до диспетчера ОСББ:</b>\n"
+        for t, master_name in tickets_data:
+            master_line = f"\n• <b>Майстер:</b> {master_name}" if master_name else ""
+            full_text += (
+                f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status, '🛠 В роботі')}]\n"
+                f"• <b>Дата:</b> {t.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+                f"• <b>Опис:</b> {t.description}{master_line}\n\n"
+            )
         full_text += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
     kb = InlineKeyboardMarkup(
