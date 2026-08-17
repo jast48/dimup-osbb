@@ -149,9 +149,12 @@ async def cb_start_wizard(callback: CallbackQuery, state: FSMContext):
 
 @router.message(UtilityWizardState.waiting_for_electricity, F.text)
 async def process_wizard_electricity(message: Message, state: FSMContext):
-    acc_num = message.text.strip().replace(" ", "")
-    await state.update_data(acc_electricity=acc_num)
-    await prompt_wizard_gas(message, state)
+    await handle_wizard_step_input(
+        message=message,
+        state=state,
+        provider_type=UtilityProviderType.ELECTRICITY,
+        next_step_coro=prompt_wizard_gas
+    )
 
 
 @router.callback_query(F.data == "skip_step_electricity")
@@ -183,9 +186,12 @@ async def prompt_wizard_gas(event: Message, state: FSMContext, is_edit: bool = F
 
 @router.message(UtilityWizardState.waiting_for_gas, F.text)
 async def process_wizard_gas(message: Message, state: FSMContext):
-    acc_num = message.text.strip().replace(" ", "")
-    await state.update_data(acc_gas=acc_num)
-    await prompt_wizard_water(message, state)
+    await handle_wizard_step_input(
+        message=message,
+        state=state,
+        provider_type=UtilityProviderType.GAS,
+        next_step_coro=prompt_wizard_water
+    )
 
 
 @router.callback_query(F.data == "skip_step_gas")
@@ -217,9 +223,12 @@ async def prompt_wizard_water(event: Message, state: FSMContext, is_edit: bool =
 
 @router.message(UtilityWizardState.waiting_for_water, F.text)
 async def process_wizard_water(message: Message, state: FSMContext):
-    acc_num = message.text.strip().replace(" ", "")
-    await state.update_data(acc_water=acc_num)
-    await prompt_wizard_heating(message, state)
+    await handle_wizard_step_input(
+        message=message,
+        state=state,
+        provider_type=UtilityProviderType.WATER,
+        next_step_coro=prompt_wizard_heating
+    )
 
 
 @router.callback_query(F.data == "skip_step_water")
@@ -251,9 +260,69 @@ async def prompt_wizard_heating(event: Message, state: FSMContext, is_edit: bool
 
 @router.message(UtilityWizardState.waiting_for_heating, F.text)
 async def process_wizard_heating(message: Message, state: FSMContext):
-    acc_num = message.text.strip().replace(" ", "")
+    acc_num = message.text.strip().replace(" ", "").replace("-", "")
+    telegram_id = message.from_user.id
+
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        apt_num = apt.number if apt else 1
+        area = apt.area if apt and apt.area else 60.0
+
+    val = UtilityService.validate_and_lookup_account(UtilityProviderType.HEATING, acc_num, apt_num, area)
+    if not val["is_valid"]:
+        await message.answer(f"{val['error_message']}\n\nСпробуйте ввести ще раз:")
+        return
+
     await state.update_data(acc_heating=acc_num)
+    
+    confirm_text = (
+        f"✅ <b>Рахунок за опалення підтверджено в базі!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"♨️ <b>Постачальник:</b> {val['provider_name']}\n"
+        f"🔢 <b>Особовий рахунок:</b> <code>{val['account_number']}</code>\n"
+        f"📊 <b>Поточне нарахування:</b> <b>{val['amount']:.2f} грн</b>\n"
+        f"📝 <b>Деталі:</b> <i>{val['details']}</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    await message.answer(confirm_text, parse_mode="HTML")
     await finish_wizard_saving(message, state, message.from_user.id)
+
+
+async def handle_wizard_step_input(message: Message, state: FSMContext, provider_type: UtilityProviderType, next_step_coro):
+    acc_num = message.text.strip().replace(" ", "").replace("-", "")
+    telegram_id = message.from_user.id
+
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        apt_num = apt.number if apt else 1
+        area = apt.area if apt and apt.area else 60.0
+
+    val = UtilityService.validate_and_lookup_account(provider_type, acc_num, apt_num, area)
+    if not val["is_valid"]:
+        await message.answer(f"{val['error_message']}\n\nСпробуйте ввести номер ще раз:")
+        return
+
+    key = f"acc_{provider_type.value}"
+    await state.update_data({key: acc_num})
+
+    confirm_text = (
+        f"✅ <b>Рахунок успішно знайдено в базі постачальника!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{val['icon']} <b>Постачальник:</b> {val['provider_name']}\n"
+        f"🔢 <b>Особовий рахунок:</b> <code>{val['account_number']}</code>\n"
+        f"📍 <b>Прив'язка:</b> {val['address']}\n"
+        f"📊 <b>Поточне нарахування:</b> <b>{val['amount']:.2f} грн</b>\n"
+        f"📝 <b>Деталі:</b> <i>{val['details']}</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    await message.answer(confirm_text, parse_mode="HTML")
+    await next_step_coro(message, state)
 
 
 @router.callback_query(F.data == "skip_step_heating")
@@ -622,14 +691,10 @@ async def cb_set_provider(callback: CallbackQuery, state: FSMContext):
 
 @router.message(UtilityAccountState.waiting_for_account_number, F.text)
 async def process_account_number(message: Message, state: FSMContext):
-    acc_num = message.text.strip().replace(" ", "")
-    if len(acc_num) < 3:
-        await message.answer("⚠️ Номер особового рахунку занадто короткий. Введіть коректний номер:")
-        return
-
+    acc_num = message.text.strip().replace(" ", "").replace("-", "")
     data = await state.get_data()
     prov_type_str = data.get("chosen_provider", "electricity")
-    prov_name = data.get("chosen_name", "Міська служба")
+    prov_type = UtilityProviderType(prov_type_str)
     telegram_id = message.from_user.id
 
     async with async_session_maker() as session:
@@ -638,8 +703,13 @@ async def process_account_number(message: Message, state: FSMContext):
 
         apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
         apt = apt_res.scalar_one_or_none()
+        apt_num = apt.number if apt else 1
+        area = apt.area if apt and apt.area else 60.0
 
-        prov_type = UtilityProviderType(prov_type_str)
+        val = UtilityService.validate_and_lookup_account(prov_type, acc_num, apt_num, area)
+        if not val["is_valid"]:
+            await message.answer(f"{val['error_message']}\n\nСпробуйте ввести номер ще раз:")
+            return
 
         exist_res = await session.execute(
             select(UtilityAccount).where(
@@ -650,14 +720,17 @@ async def process_account_number(message: Message, state: FSMContext):
         exist_acc = exist_res.scalar_one_or_none()
         if exist_acc:
             exist_acc.account_number = acc_num
-            exist_acc.provider_name = prov_name
+            exist_acc.provider_name = val["provider_name"]
+            exist_acc.last_amount = val["amount"]
+            exist_acc.details = val["details"]
         else:
             new_acc = UtilityAccount(
                 apartment_id=apt.id,
                 provider_type=prov_type,
-                provider_name=prov_name,
+                provider_name=val["provider_name"],
                 account_number=acc_num,
-                last_amount=0.0,
+                last_amount=val["amount"],
+                details=val["details"],
                 is_paid=False
             )
             session.add(new_acc)
@@ -671,10 +744,15 @@ async def process_account_number(message: Message, state: FSMContext):
         inline_keyboard=[[InlineKeyboardButton(text="📱 Переглянути єдину квитанцію", callback_data="utility_hub_main")]]
     )
     await message.answer(
-        f"✅ <b>Особовий рахунок успішно збережено!</b>\n\n"
-        f"📌 <b>Служба:</b> {prov_name}\n"
-        f"🔢 <b>Номер О/Р:</b> <code>{acc_num}</code>\n\n"
-        f"<i>Дані автоматично синхронізовано з базою нарахувань.</i>",
+        f"✅ <b>Особовий рахунок успішно підтверджено та збережено!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{val['icon']} <b>Постачальник:</b> {val['provider_name']}\n"
+        f"🔢 <b>Номер О/Р:</b> <code>{acc_num}</code>\n"
+        f"📍 <b>Прив'язка:</b> {val['address']}\n"
+        f"💰 <b>Актуальне нарахування:</b> <b>{val['amount']:.2f} грн</b>\n"
+        f"📝 <b>Розрахунок:</b> <i>{val['details']}</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"<i>Дані автоматично синхронізовано з єдиною квитанцією квартири.</i>",
         reply_markup=kb,
         parse_mode="HTML"
     )

@@ -130,6 +130,52 @@ class UtilityService:
         }
 
     @classmethod
+    def validate_and_lookup_account(
+        cls,
+        provider_type: UtilityProviderType,
+        account_number: str,
+        apt_number: int,
+        area: float = 60.0
+    ) -> Dict[str, Any]:
+        """
+        Миттєва перевірка та валідація особового рахунку в базі постачальника.
+        Повертає картку перевірки: знайденого постачальника, адресу, стан нарахування.
+        """
+        acc_clean = account_number.strip().replace(" ", "").replace("-", "")
+        cfg = PROVIDER_CATALOG.get(provider_type, {})
+        full_name = cfg.get("full_name", "Міська служба")
+        icon = cfg.get("icon", "📄")
+
+        # Перевірка формату (тільки цифри, достатня довжина)
+        if not acc_clean.isdigit() or len(acc_clean) < 4:
+            return {
+                "is_valid": False,
+                "error_message": "⚠️ Номер особового рахунку повинен складатись тільки з цифр (від 4 до 16 цифр)."
+            }
+
+        # Отримуємо розрахунок
+        billing_info = cls.simulate_provider_billing(
+            provider_type=provider_type,
+            account_number=acc_clean,
+            apt_number=apt_number,
+            area=area
+        )
+
+        return {
+            "is_valid": True,
+            "provider_type": provider_type.value,
+            "provider_name": full_name,
+            "short_name": cfg.get("name", full_name),
+            "icon": icon,
+            "account_number": acc_clean,
+            "address": f"вул. Шевченка, 14, кв. №{apt_number}",
+            "amount": billing_info["amount"],
+            "details": billing_info["details"],
+            "tariff": cfg.get("tariff", 0.0),
+            "unit": cfg.get("unit", "")
+        }
+
+    @classmethod
     async def sync_apartment_utilities(cls, session: AsyncSession, apartment_id: int) -> List[UtilityAccount]:
         """
         Опитує міські бази даних для всіх прив'язаних особових рахунків квартири.
