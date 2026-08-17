@@ -112,6 +112,7 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="👥 Мешканці", callback_data="admin_residents")
             ],
             [
+                InlineKeyboardButton(text="👷‍♂️ Реєстр майстрів", callback_data="admin_contractors_list"),
                 InlineKeyboardButton(text="🔙 Назад до меню", callback_data="admin_back_main")
             ]
         ]

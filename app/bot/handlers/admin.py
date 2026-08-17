@@ -4,7 +4,7 @@ from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select, desc, delete
+from sqlalchemy import select, desc, delete, or_
 from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.db.session import async_session_maker
@@ -84,15 +84,24 @@ async def cb_admin_tickets(callback: CallbackQuery):
             apt = apt_res.scalar_one_or_none()
             apt_num = apt.number if apt else "—"
 
+            assigned_master_name = None
+            if t.assigned_to_id:
+                m_res = await session.execute(select(User).where(User.id == t.assigned_to_id))
+                m_obj = m_res.scalar_one_or_none()
+                if m_obj:
+                    assigned_master_name = m_obj.full_name
+
         voice_status = "✅ Є аудіозапис" if t.audio_file_id else "📝 Текстова"
         photo_status = "✅ Є фото" if t.photo_file_id else "❌ Немає"
+
+        master_line = f"\n👷‍♂️ <b>Призначений майстер:</b> {assigned_master_name}" if assigned_master_name else ""
 
         text = (
             f"🎫 <b>Заявка №{t.id}</b> [{status_badges.get(t.status, '🛠 В роботі')}]\n"
             f"👤 <b>Мешканець:</b> {author_name} (Кв. №{apt_num})\n"
             f"📞 <b>Тел:</b> {author_phone}\n"
             f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(t.category)}\n"
-            f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(t.urgency)}\n"
+            f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(t.urgency)}{master_line}\n"
             f"🎙 <b>Аудіо:</b> {voice_status} | 📷 <b>Фото:</b> {photo_status}\n\n"
             f"📝 <b>Опис:</b> {t.description}\n"
         )
@@ -106,10 +115,11 @@ async def cb_admin_tickets(callback: CallbackQuery):
                 InlineKeyboardButton(text="📷 Фото", callback_data=f"show_ticket_photo_{t.id}")
             ],
             [
-                InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{t.id}_in_progress"),
-                InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{t.id}_resolved")
+                InlineKeyboardButton(text="👷‍♂️ Призначити майстра", callback_data=f"assign_master_ticket_{t.id}"),
+                InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{t.id}_in_progress")
             ],
             [
+                InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{t.id}_resolved"),
                 InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{t.id}_cancelled")
             ]
         ]
@@ -308,6 +318,204 @@ async def cb_change_status(callback: CallbackQuery, bot: Bot):
             await callback.message.edit_reply_markup(reply_markup=in_progress_kb)
         except Exception:
             pass
+
+
+@router.callback_query(F.data.startswith("assign_master_ticket_"))
+async def cb_assign_master_ticket(callback: CallbackQuery):
+    """Вибір майстра для призначення на заявку"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    ticket_id = int(callback.data.split("_")[3])
+    async with async_session_maker() as session:
+        masters_res = await session.execute(
+            select(User).where(
+                or_(User.role == UserRole.CONTRACTOR, User.contractor_category.isnot(None))
+            ).order_by(desc(User.contractor_rating))
+        )
+        masters = masters_res.scalars().all()
+
+    if not masters:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Зареєструвати майстра", callback_data="start_register_contractor")],
+                [InlineKeyboardButton(text="🔙 До заявок", callback_data="admin_tickets_list")]
+            ]
+        )
+        await callback.message.edit_text(
+            f"⚠️ <b>Немає зареєстрованих майстрів у базі!</b>\n\n"
+            f"Зареєструйте майстрів через кнопку або запропонуйте їм перейти в бота та обрати роль «🛠 Підрядник».",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        return
+
+    buttons = []
+    for m in masters:
+        cat_badge = m.contractor_category or "Майстер"
+        rating_badge = f"⭐ {m.contractor_rating:.1f}" if m.contractor_rating else "⭐ 5.0"
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"👷‍♂️ {m.full_name} ({cat_badge}, {rating_badge})",
+                callback_data=f"exec_assign_{ticket_id}_{m.id}"
+            )
+        ])
+    buttons.append([InlineKeyboardButton(text="🔙 Скасувати", callback_data="admin_tickets_list")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(
+        f"👷‍♂️ <b>ПРИЗНАЧЕННЯ МАЙСТРА НА ЗАЯВКУ №{ticket_id}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"Оберіть спеціаліста зі списку нижче:\n"
+        f"<i>(Після вибору майстер миттєво отримає сповіщення з описом проблеми та контактами мешканця)</i>",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("exec_assign_"))
+async def cb_exec_assign_master(callback: CallbackQuery, bot: Bot):
+    """Фіксація призначення майстра на заявку та сповіщення сторін"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    parts = callback.data.split("_")
+    ticket_id = int(parts[2])
+    master_id = int(parts[3])
+
+    async with async_session_maker() as session:
+        ticket_res = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+        ticket = ticket_res.scalar_one_or_none()
+
+        master_res = await session.execute(select(User).where(User.id == master_id))
+        master = master_res.scalar_one_or_none()
+
+        if not ticket or not master:
+            await callback.answer("Заявку або майстра не знайдено.")
+            return
+
+        ticket.assigned_to_id = master.id
+        ticket.status = TicketStatus.IN_PROGRESS
+        await session.commit()
+
+        # Отримуємо автора заявки
+        author_res = await session.execute(select(User).where(User.id == ticket.creator_id))
+        author = author_res.scalar_one_or_none()
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == ticket.apartment_id))
+        apt = apt_res.scalar_one_or_none()
+        apt_num = apt.number if apt else "—"
+
+    await callback.answer(f"✅ Майстра {master.full_name} призначено!", show_alert=True)
+    await callback.message.edit_text(
+        f"✅ <b>Майстра {master.full_name} успішно призначено на заявку №{ticket_id}!</b>\n\n"
+        f"📌 Статус заявки змінено на <b>«🛠 В роботі»</b>.\n"
+        f"🔔 Майстер та мешканець отримали сповіщення у боті.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 До списку заявок", callback_data="admin_tickets_list")]]
+        ),
+        parse_mode="HTML"
+    )
+
+    # 1. Сповіщення призначеному майстру
+    if master.telegram_id:
+        try:
+            master_kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="🏁 Роботу виконано", callback_data=f"set_status_{ticket_id}_resolved")
+                    ]
+                ]
+            )
+            await bot.send_message(
+                chat_id=master.telegram_id,
+                text=(
+                    f"🚨 <b>ВАС ПРИЗНАЧЕНО НА ЗАЯВКУ №{ticket_id}!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>Замовник:</b> {author.full_name if author else 'Мешканець'} (Квартира №{apt_num})\n"
+                    f"📱 <b>Телефон:</b> <code>{author.phone if author and author.phone else '—'}</code>\n"
+                    f"📂 <b>Категорія:</b> {CATEGORY_NAMES.get(ticket.category, 'Загальна')}\n"
+                    f"⚡️ <b>Срочність:</b> {URGENCY_NAMES.get(ticket.urgency, 'Звичайна')}\n\n"
+                    f"📝 <b>Опис проблеми:</b>\n{ticket.description}\n\n"
+                    f"💡 <b>AI порада:</b> <i>{ticket.ai_summary or '—'}</i>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>Будь ласка, зв'яжіться з мешканцем або прибудьте для усунення несправності. Після завершення натисніть «🏁 Роботу виконано».</i>"
+                ),
+                reply_markup=master_kb,
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.debug("Failed to notify assigned master: %s", e)
+
+    # 2. Сповіщення мешканцю
+    if author and author.telegram_id:
+        try:
+            await bot.send_message(
+                chat_id=author.telegram_id,
+                text=(
+                    f"ℹ️ <b>Оновлення по вашій заявці №{ticket_id}:</b>\n\n"
+                    f"Правління призначило відповідального спеціаліста:\n"
+                    f"👷‍♂️ <b>Майстер:</b> {master.full_name}\n"
+                    f"📌 <b>Спеціалізація:</b> {master.contractor_category or 'Служба ОСББ'}\n"
+                    f"📱 <b>Телефон для зв'язку:</b> <code>{master.phone or 'Вказано в базі'}</code>\n\n"
+                    f"<i>Спеціаліст зв'яжеться з вами найближчим часом.</i>"
+                ),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.debug("Failed to notify resident: %s", e)
+
+
+@router.callback_query(F.data == "admin_contractors_list")
+async def cb_admin_contractors_list(callback: CallbackQuery):
+    """Реєстр майстрів та підрядників будинку в панелі правління"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    async with async_session_maker() as session:
+        masters_res = await session.execute(
+            select(User).where(
+                or_(User.role == UserRole.CONTRACTOR, User.contractor_category.isnot(None))
+            ).order_by(desc(User.contractor_rating))
+        )
+        masters = masters_res.scalars().all()
+
+    buttons = [
+        [InlineKeyboardButton(text="➕ Зареєструвати нового майстра", callback_data="start_register_contractor")],
+        [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    if not masters:
+        text = (
+            "👷‍♂️ <b>РЕЄСТР МАЙСТРІВ ТА ПІДРЯДНИКІВ</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Наразі в системі немає зареєстрованих підрядників.\n\n"
+            "Ви можете додати майстра самостійно через кнопку <b>«➕ Зареєструвати нового майстра»</b> або надіслати йому посилання на бота."
+        )
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        return
+
+    text = f"👷‍♂️ <b>РЕЄСТР МАЙСТРІВ ТА ПІДРЯДНИКІВ БУДИНКУ ({len(masters)})</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    for idx, m in enumerate(masters, 1):
+        cat = m.contractor_category or "Універсальний спеціаліст"
+        company = f" ({m.contractor_company})" if m.contractor_company else ""
+        rating = m.contractor_rating or 5.0
+        orders = m.contractor_orders_count or 0
+        phone = m.phone or "Не вказано"
+        tg = f"@{m.username}" if m.username else "—"
+
+        text += (
+            f"<b>{idx}. {m.full_name}</b>{company}\n"
+            f"   📌 <b>Спеціалізація:</b> {cat}\n"
+            f"   ⭐️ <b>Рейтинг:</b> {rating:.2f} / 5.0 (Виконано робіт: {orders})\n"
+            f"   📱 <b>Телефон:</b> <code>{phone}</code> | <b>TG:</b> {tg}\n\n"
+        )
+
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "admin_tickets_archive")

@@ -209,8 +209,12 @@ async def process_ticket_confirmation(callback: CallbackQuery, state: FSMContext
         inline_keyboard=[
             admin_media_row,
             [
-                InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{ticket_id}_in_progress"),
-                InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{ticket_id}_resolved")
+                InlineKeyboardButton(text="👷‍♂️ Призначити майстра", callback_data=f"assign_master_ticket_{ticket_id}"),
+                InlineKeyboardButton(text="🛠 В роботу", callback_data=f"set_status_{ticket_id}_in_progress")
+            ],
+            [
+                InlineKeyboardButton(text="✅ Виконано", callback_data=f"set_status_{ticket_id}_resolved"),
+                InlineKeyboardButton(text="❌ Відхилити", callback_data=f"set_status_{ticket_id}_cancelled")
             ]
         ]
     )
