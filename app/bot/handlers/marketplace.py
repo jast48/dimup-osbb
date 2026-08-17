@@ -372,6 +372,9 @@ async def cb_order_proceed(callback: CallbackQuery, state: FSMContext):
                 InlineKeyboardButton(text="📅 Вихідні (Субота 11:00)", callback_data="mkt_set_time_weekend")
             ],
             [
+                InlineKeyboardButton(text="✍️ Вказати власний час", callback_data="mkt_custom_time_prompt")
+            ],
+            [
                 InlineKeyboardButton(text="❌ Скасувати", callback_data="mkt_main_hub")
             ]
         ]
@@ -382,9 +385,39 @@ async def cb_order_proceed(callback: CallbackQuery, state: FSMContext):
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🛠 <b>Послуга:</b> {title}\n"
         f"👷‍♂️ <b>Виконавець:</b> {contractor}\n\n"
-        f"👉 <b>Оберіть кнопку зі зручним часом</b> або <b>напишіть свій варіант текстом</b> у відповідь <i>(наприклад: «Субота 11:00»)</i>:"
+        f"👉 <b>Оберіть кнопку зі зручним часом</b> або натисніть <b>«✍️ Вказати власний час»</b>:"
     )
     
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+    await state.set_state(MarketplaceOrderState.waiting_for_time)
+
+
+@router.callback_query(F.data == "mkt_custom_time_prompt")
+async def cb_custom_time_prompt(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    title = data.get("item_title") or "Послуга майстра"
+    contractor = data.get("contractor_name") or "Закріплений спеціаліст"
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 До швидких варіантів", callback_data="mkt_order_proceed")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="mkt_main_hub")]
+        ]
+    )
+
+    text = (
+        f"✍️ <b>ВВЕДЕННЯ ВЛАСНОГО ЧАСУ</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🛠 <b>Послуга:</b> {title}\n"
+        f"👷‍♂️ <b>Майстер:</b> {contractor}\n\n"
+        f"Напишіть у повідомленні <b>бажану дату та час візиту</b>:\n"
+        f"<i>(Наприклад: «П'ятниця о 16:30», «25 серпня після 19:00» або «Завтра з 12 до 14»)</i>"
+    )
     try:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception:
