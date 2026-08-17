@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime
 from aiogram import Router, F, Bot
+from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, desc
 from app.db.session import async_session_maker
 from app.db.models import User, Apartment, Bill, UtilityAccount, UtilityProviderType, UserRole
-from app.bot.states.user_states import UtilityAccountState
+from app.bot.states.user_states import UtilityAccountState, UtilityWizardState
 from app.bot.keyboards.keyboards import get_main_menu_keyboard, get_cancel_keyboard
 from app.services.utility_service import UtilityService, PROVIDER_CATALOG
 
@@ -17,7 +18,9 @@ router = Router()
 # 1. ЄДИНА КОМУНАЛЬНА КВИТАНЦІЯ (ХАБ РАХУНКІВ)
 # ==========================================
 
-@router.message(F.text.contains("Оплата") | F.text.contains("Сплатити") | F.text.contains("Платіжка") | F.text.contains("Рахунки"))
+@router.message(Command("bills"))
+@router.message(Command("accounts"))
+@router.message(F.text.contains("Оплата") | F.text.contains("Сплатити") | F.text.contains("Платіжка") | F.text.contains("Рахунки") | F.text.contains("Особові"))
 @router.callback_query(F.data == "pay_bills_start")
 @router.callback_query(F.data == "utility_hub_main")
 async def cmd_unified_billing_hub(event: Message | CallbackQuery, state: FSMContext):
@@ -62,12 +65,18 @@ async def cmd_unified_billing_hub(event: Message | CallbackQuery, state: FSMCont
     )
 
     for item in items:
-        badge = f"<b>{item['amount']:.2f} грн</b> ⏳" if not item["is_paid"] and item["amount"] > 0 else "Сплачено ✅"
+        if not item.get("is_linked", True):
+            badge = "⚠️ <i>Не прив'язано</i>"
+        elif not item["is_paid"] and item["amount"] > 0:
+            badge = f"<b>{item['amount']:.2f} грн</b> ⏳ (До сплати)"
+        else:
+            badge = "Сплачено ✅"
+
         text += (
             f"{item['icon']} <b>{item['title']}</b>\n"
             f"   ├ О/Р: <code>{item['account_number']}</code>\n"
             f"   ├ Деталі: <i>{item['details']}</i>\n"
-            f"   └ До сплати: {badge}\n\n"
+            f"   └ Стан: {badge}\n\n"
         )
 
     text += "━━━━━━━━━━━━━━━━━━━━━━"
@@ -86,8 +95,11 @@ async def cmd_unified_billing_hub(event: Message | CallbackQuery, state: FSMCont
         ])
 
     buttons.append([
+        InlineKeyboardButton(text="🧙‍♂️ Налаштувати мої рахунки (Опитувальник)", callback_data="start_utility_wizard")
+    ])
+    buttons.append([
         InlineKeyboardButton(text="🔄 Оновити нарахування з баз", callback_data="sync_utilities_now"),
-        InlineKeyboardButton(text="⚙️ Мої особові рахунки", callback_data="manage_accounts_list")
+        InlineKeyboardButton(text="⚙️ Керування О/Р", callback_data="manage_accounts_list")
     ])
     buttons.append([
         InlineKeyboardButton(text="🏦 Банківські реквізити IBAN", callback_data="pay_iban_info")
@@ -96,14 +108,228 @@ async def cmd_unified_billing_hub(event: Message | CallbackQuery, state: FSMCont
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     
     if isinstance(event, CallbackQuery):
-        await event.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        try:
+            await event.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        except Exception:
+            await event.message.answer(text, reply_markup=kb, parse_mode="HTML")
         await event.answer()
     else:
         await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 # ==========================================
-# 2. СИНХРОНІЗАЦІЯ З БІЛІНГОМ У РЕАЛЬНОМУ ЧАСІ
+# 2. ПОКРОКОВИЙ ОПИТУВАЛЬНИК / МАЙСТЕР НАЛАШТУВАННЯ
+# ==========================================
+
+@router.callback_query(F.data == "start_utility_wizard")
+async def cb_start_wizard(callback: CallbackQuery, state: FSMContext):
+    """Початок покрокового майстра налаштування рахунків"""
+    await state.clear()
+    
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Пропустити світло", callback_data="skip_step_electricity")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+        ]
+    )
+
+    text = (
+        "🧙‍♂️ <b>Майстер налаштування особових рахунків (1/4)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 <b>Крок 1: Електроенергія (YASNO / ДТЕК)</b>\n\n"
+        "Введіть <b>номер вашого особового рахунку за світло</b> (з паперової квитанції або додатку YASNO):\n"
+        "<i>(Наприклад: <code>29481023</code>)</i>"
+    )
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    await state.set_state(UtilityWizardState.waiting_for_electricity)
+
+
+@router.message(UtilityWizardState.waiting_for_electricity, F.text)
+async def process_wizard_electricity(message: Message, state: FSMContext):
+    acc_num = message.text.strip().replace(" ", "")
+    await state.update_data(acc_electricity=acc_num)
+    await prompt_wizard_gas(message, state)
+
+
+@router.callback_query(F.data == "skip_step_electricity")
+async def cb_skip_electricity(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await prompt_wizard_gas(callback.message, state, is_edit=True)
+
+
+async def prompt_wizard_gas(event: Message, state: FSMContext, is_edit: bool = False):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Пропустити газ", callback_data="skip_step_gas")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+        ]
+    )
+    text = (
+        "🧙‍♂️ <b>Майстер налаштування особових рахунків (2/4)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🔥 <b>Крок 2: Газопостачання (ГК «Нафтогаз України»)</b>\n\n"
+        "Введіть <b>номер вашого особового рахунку за газ</b>:\n"
+        "<i>(Наприклад: <code>10492834</code>)</i>"
+    )
+    if is_edit:
+        await event.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode="HTML")
+    await state.set_state(UtilityWizardState.waiting_for_gas)
+
+
+@router.message(UtilityWizardState.waiting_for_gas, F.text)
+async def process_wizard_gas(message: Message, state: FSMContext):
+    acc_num = message.text.strip().replace(" ", "")
+    await state.update_data(acc_gas=acc_num)
+    await prompt_wizard_water(message, state)
+
+
+@router.callback_query(F.data == "skip_step_gas")
+async def cb_skip_gas(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await prompt_wizard_water(callback.message, state, is_edit=True)
+
+
+async def prompt_wizard_water(event: Message, state: FSMContext, is_edit: bool = False):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Пропустити воду", callback_data="skip_step_water")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+        ]
+    )
+    text = (
+        "🧙‍♂️ <b>Майстер налаштування особових рахунків (3/4)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🚰 <b>Крок 3: Холодна вода (ПрАТ «АК «Київводоканал»)</b>\n\n"
+        "Введіть <b>номер особового рахунку за воду та каналізацію</b>:\n"
+        "<i>(Наприклад: <code>04192045</code>)</i>"
+    )
+    if is_edit:
+        await event.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode="HTML")
+    await state.set_state(UtilityWizardState.waiting_for_water)
+
+
+@router.message(UtilityWizardState.waiting_for_water, F.text)
+async def process_wizard_water(message: Message, state: FSMContext):
+    acc_num = message.text.strip().replace(" ", "")
+    await state.update_data(acc_water=acc_num)
+    await prompt_wizard_heating(message, state)
+
+
+@router.callback_query(F.data == "skip_step_water")
+async def cb_skip_water(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await prompt_wizard_heating(callback.message, state, is_edit=True)
+
+
+async def prompt_wizard_heating(event: Message, state: FSMContext, is_edit: bool = False):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Пропустити опалення", callback_data="skip_step_heating")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+        ]
+    )
+    text = (
+        "🧙‍♂️ <b>Майстер налаштування особових рахунків (4/4)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "♨️ <b>Крок 4: Опалення та гаряча вода (КП «Київтеплоенерго»)</b>\n\n"
+        "Введіть <b>номер особового рахунку за опалення та ГВП</b>:\n"
+        "<i>(Наприклад: <code>55819056</code>)</i>"
+    )
+    if is_edit:
+        await event.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode="HTML")
+    await state.set_state(UtilityWizardState.waiting_for_heating)
+
+
+@router.message(UtilityWizardState.waiting_for_heating, F.text)
+async def process_wizard_heating(message: Message, state: FSMContext):
+    acc_num = message.text.strip().replace(" ", "")
+    await state.update_data(acc_heating=acc_num)
+    await finish_wizard_saving(message, state, message.from_user.id)
+
+
+@router.callback_query(F.data == "skip_step_heating")
+async def cb_skip_heating(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await finish_wizard_saving(callback.message, state, callback.from_user.id, is_edit=True)
+
+
+async def finish_wizard_saving(event: Message, state: FSMContext, telegram_id: int, is_edit: bool = False):
+    data = await state.get_data()
+    
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            return
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            return
+
+        # Сохраняем введенные лицевые счета
+        steps_map = [
+            (UtilityProviderType.ELECTRICITY, data.get("acc_electricity")),
+            (UtilityProviderType.GAS, data.get("acc_gas")),
+            (UtilityProviderType.WATER, data.get("acc_water")),
+            (UtilityProviderType.HEATING, data.get("acc_heating")),
+        ]
+
+        for prov_type, acc_num in steps_map:
+            if acc_num:
+                exist_res = await session.execute(
+                    select(UtilityAccount).where(
+                        UtilityAccount.apartment_id == apt.id,
+                        UtilityAccount.provider_type == prov_type
+                    )
+                )
+                exist_acc = exist_res.scalar_one_or_none()
+                cfg = PROVIDER_CATALOG.get(prov_type, {})
+                full_name = cfg.get("full_name", "Служба")
+                
+                if exist_acc:
+                    exist_acc.account_number = acc_num
+                    exist_acc.provider_name = full_name
+                else:
+                    new_acc = UtilityAccount(
+                        apartment_id=apt.id,
+                        provider_type=prov_type,
+                        provider_name=full_name,
+                        account_number=acc_num,
+                        last_amount=0.0,
+                        is_paid=False
+                    )
+                    session.add(new_acc)
+
+        await session.commit()
+        
+        # Синхронизируем начисления с базами
+        await UtilityService.sync_apartment_utilities(session, apt.id)
+
+    await state.clear()
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="📱 Переглянути єдину квитанцію", callback_data="utility_hub_main")]]
+    )
+    success_text = (
+        "🎉 <b>Налаштування успішно завершено!</b>\n\n"
+        "Всі ваші особові рахунки надійно закріплені за квартирою.\n"
+        "Бот автоматично звернувся до міського білінгу та сформував актуальну квитанцію до сплати!"
+    )
+    if is_edit:
+        await event.edit_text(success_text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await event.answer(success_text, reply_markup=kb, parse_mode="HTML")
+
+
+# ==========================================
+# 3. СИНХРОНІЗАЦІЯ З БІЛІНГОМ У РЕАЛЬНОМУ ЧАСІ
 # ==========================================
 
 @router.callback_query(F.data == "sync_utilities_now")
@@ -129,7 +355,7 @@ async def cb_sync_utilities(callback: CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# 3. ОПЛАТА ВСІХ РАХУНКІВ ОДРАЗУ В 1 КЛІК
+# 4. ОПЛАТА ВСІХ РАХУНКІВ ОДРАЗУ В 1 КЛІК
 # ==========================================
 
 @router.callback_query(F.data.startswith("pay_all_unified_"))
@@ -203,7 +429,7 @@ async def cb_execute_pay_all(callback: CallbackQuery):
 
 
 # ==========================================
-# 4. ОПЛАТА ОКРЕМОЇ СЛУЖБИ
+# 5. ОПЛАТА ОКРЕМОЇ СЛУЖБИ
 # ==========================================
 
 @router.callback_query(F.data == "pay_separate_menu")
@@ -246,7 +472,6 @@ async def cb_pay_one_service(callback: CallbackQuery):
 
     async with async_session_maker() as session:
         if item_id == "osbb":
-            # Оплачиваем ОСББ
             telegram_id = callback.from_user.id
             user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
             user = user_res.scalar_one_or_none()
@@ -294,7 +519,7 @@ async def cb_pay_one_service(callback: CallbackQuery):
 
 
 # ==========================================
-# 5. КЕРУВАННЯ ОСОБОВИМИ РАХУНКАМИ (SETTINGS)
+# 6. КЕРУВАННЯ ОСОБОВИМИ РАХУНКАМИ (SETTINGS)
 # ==========================================
 
 @router.callback_query(F.data == "manage_accounts_list")
@@ -318,6 +543,10 @@ async def cb_manage_accounts(callback: CallbackQuery):
     )
 
     buttons = []
+    buttons.append([
+        InlineKeyboardButton(text="🧙‍♂️ Запустити покроковий опитувальник", callback_data="start_utility_wizard")
+    ])
+
     for acc in accounts:
         cfg = PROVIDER_CATALOG.get(acc.provider_type, {})
         icon = cfg.get("icon", "📄")
@@ -334,7 +563,7 @@ async def cb_manage_accounts(callback: CallbackQuery):
             )
         ])
 
-    buttons.append([InlineKeyboardButton(text="➕ Додати новий особовий рахунок", callback_data="add_account_start")])
+    buttons.append([InlineKeyboardButton(text="➕ Додати окремий рахунок", callback_data="add_account_start")])
     buttons.append([InlineKeyboardButton(text="🔙 Назад до квитанції", callback_data="utility_hub_main")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -409,7 +638,6 @@ async def process_account_number(message: Message, state: FSMContext):
 
         prov_type = UtilityProviderType(prov_type_str)
 
-        # Перевіряємо чи є вже такий рахунок
         exist_res = await session.execute(
             select(UtilityAccount).where(
                 UtilityAccount.apartment_id == apt.id,
@@ -432,8 +660,6 @@ async def process_account_number(message: Message, state: FSMContext):
             session.add(new_acc)
 
         await session.commit()
-        
-        # Синхронізуємо нарахування
         await UtilityService.sync_apartment_utilities(session, apt.id)
 
     await state.clear()
@@ -468,7 +694,7 @@ async def cb_del_account(callback: CallbackQuery):
 
 
 # ==========================================
-# 6. РЕКВІЗИТИ IBAN
+# 7. РЕКВІЗИТИ IBAN
 # ==========================================
 
 @router.callback_query(F.data == "pay_iban_info")

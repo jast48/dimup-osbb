@@ -60,9 +60,13 @@
                         </div>
                         <div style="text-align: right; min-width: 90px;">
                             <div class="bill-price" style="font-weight: 700; font-size: 14px;">{{ '%.2f'|format(item.amount) }} грн</div>
-                            <div style="font-size: 11px; font-weight: 600; color: {{ '#10b981' if item.is_paid else '#f43f5e' }};">
-                                {{ 'Сплачено ✅' if item.is_paid else 'До сплати ⏳' }}
-                            </div>
+                            {% if item.is_linked is defined and not item.is_linked %}
+                                <div style="font-size: 11px; font-weight: 600; color: #f59e0b;">Не прив'язано ⚠️</div>
+                            {% else %}
+                                <div style="font-size: 11px; font-weight: 600; color: {{ '#10b981' if item.is_paid else '#f43f5e' }};">
+                                    {{ 'Сплачено ✅' if item.is_paid else 'До сплати ⏳' }}
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}

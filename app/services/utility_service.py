@@ -134,7 +134,6 @@ class UtilityService:
         """
         Опитує міські бази даних для всіх прив'язаних особових рахунків квартири.
         """
-        # Отримуємо дані квартири та останній лічильник
         apt_res = await session.execute(select(Apartment).where(Apartment.id == apartment_id))
         apt = apt_res.scalar_one_or_none()
         if not apt:
@@ -151,52 +150,22 @@ class UtilityService:
         )
         accounts = accounts_res.scalars().all()
 
-        # Якщо ще немає жодного особового рахунку — додаємо стандартні за замовчуванням
-        if not accounts:
-            accounts = await cls.seed_default_accounts_for_apartment(session, apt)
-
         # Оновлюємо кожен рахунок через API
         for acc in accounts:
-            bill_info = cls.simulate_provider_billing(
-                provider_type=acc.provider_type,
-                account_number=acc.account_number,
-                apt_number=apt.number,
-                area=apt.area or 60.0,
-                meter_reading=last_meter
-            )
-            acc.last_amount = bill_info["amount"]
-            acc.details = bill_info["details"]
-            acc.last_sync_at = bill_info["sync_time"]
+            if acc.account_number and acc.account_number != "—":
+                bill_info = cls.simulate_provider_billing(
+                    provider_type=acc.provider_type,
+                    account_number=acc.account_number,
+                    apt_number=apt.number,
+                    area=apt.area or 60.0,
+                    meter_reading=last_meter
+                )
+                acc.last_amount = bill_info["amount"]
+                acc.details = bill_info["details"]
+                acc.last_sync_at = bill_info["sync_time"]
 
         await session.commit()
         return accounts
-
-    @classmethod
-    async def seed_default_accounts_for_apartment(cls, session: AsyncSession, apt: Apartment) -> List[UtilityAccount]:
-        """Створює стартовий набір особових рахунків для квартири"""
-        defaults = [
-            (UtilityProviderType.ELECTRICITY, f"294810{apt.number:02d}", PROVIDER_CATALOG[UtilityProviderType.ELECTRICITY]["full_name"]),
-            (UtilityProviderType.GAS, f"104928{apt.number:02d}", PROVIDER_CATALOG[UtilityProviderType.GAS]["full_name"]),
-            (UtilityProviderType.WATER, f"041920{apt.number:02d}", PROVIDER_CATALOG[UtilityProviderType.WATER]["full_name"]),
-            (UtilityProviderType.HEATING, f"558190{apt.number:02d}", PROVIDER_CATALOG[UtilityProviderType.HEATING]["full_name"]),
-            (UtilityProviderType.WASTE, f"881920{apt.number:02d}", PROVIDER_CATALOG[UtilityProviderType.WASTE]["full_name"]),
-        ]
-        created = []
-        for p_type, acc_num, p_name in defaults:
-            item = UtilityAccount(
-                apartment_id=apt.id,
-                provider_type=p_type,
-                provider_name=p_name,
-                account_number=acc_num,
-                last_amount=0.0,
-                is_paid=False,
-                last_sync_at=datetime.now()
-            )
-            session.add(item)
-            created.append(item)
-
-        await session.flush()
-        return created
 
     @classmethod
     async def get_unified_bill_summary(cls, session: AsyncSession, apartment_id: int) -> Dict[str, Any]:
@@ -207,7 +176,6 @@ class UtilityService:
         - Газ (Нафтогаз)
         - Вода (Київводоканал)
         - Опалення (Київтеплоенерго)
-        - Вивіз сміття
         """
         apt_res = await session.execute(select(Apartment).where(Apartment.id == apartment_id))
         apt = apt_res.scalar_one_or_none()
@@ -226,8 +194,7 @@ class UtilityService:
             select(UtilityAccount).where(UtilityAccount.apartment_id == apartment_id)
         )
         accounts = accounts_res.scalars().all()
-        if not accounts:
-            accounts = await cls.sync_apartment_utilities(session, apartment_id)
+        account_by_type = {acc.provider_type: acc for acc in accounts}
 
         items = []
         # Додаємо ОСББ в початок списку
@@ -243,28 +210,55 @@ class UtilityService:
         })
 
         total_to_pay = osbb_amount
+        has_custom_accounts = len(accounts) > 0
 
-        for acc in accounts:
-            cfg = PROVIDER_CATALOG.get(acc.provider_type, {})
+        # Основні 4 міські служби
+        main_providers = [
+            UtilityProviderType.ELECTRICITY,
+            UtilityProviderType.GAS,
+            UtilityProviderType.WATER,
+            UtilityProviderType.HEATING
+        ]
+
+        for p_type in main_providers:
+            cfg = PROVIDER_CATALOG.get(p_type, {})
             icon = cfg.get("icon", "📄")
-            short_title = cfg.get("name", acc.provider_name)
+            short_title = cfg.get("name", "Міська служба")
+            acc = account_by_type.get(p_type)
 
-            if not acc.is_paid:
-                total_to_pay += acc.last_amount
+            if acc and acc.account_number:
+                if not acc.is_paid:
+                    total_to_pay += acc.last_amount
 
-            items.append({
-                "id": f"util_{acc.id}",
-                "account_id": acc.id,
-                "type": acc.provider_type.value,
-                "icon": icon,
-                "title": short_title,
-                "full_name": acc.provider_name,
-                "account_number": acc.account_number,
-                "amount": acc.last_amount,
-                "details": acc.details or "За поточний період",
-                "is_paid": acc.is_paid,
-                "last_sync_at": acc.last_sync_at.strftime("%d.%m.%Y %H:%M") if acc.last_sync_at else "—"
-            })
+                items.append({
+                    "id": f"util_{acc.id}",
+                    "account_id": acc.id,
+                    "type": acc.provider_type.value,
+                    "icon": icon,
+                    "title": short_title,
+                    "full_name": acc.provider_name,
+                    "account_number": acc.account_number,
+                    "amount": acc.last_amount,
+                    "details": acc.details or "За поточний період",
+                    "is_paid": acc.is_paid,
+                    "is_linked": True,
+                    "last_sync_at": acc.last_sync_at.strftime("%d.%m.%Y %H:%M") if acc.last_sync_at else "—"
+                })
+            else:
+                # Служба ще не прив'язана
+                items.append({
+                    "id": f"unlinked_{p_type.value}",
+                    "type": p_type.value,
+                    "icon": icon,
+                    "title": short_title,
+                    "full_name": cfg.get("full_name", short_title),
+                    "account_number": "Не прив'язано ⚠️",
+                    "amount": 0.0,
+                    "details": "Введіть особовий рахунок через опитувальник",
+                    "is_paid": True,
+                    "is_linked": False,
+                    "last_sync_at": "—"
+                })
 
         unpaid_count = sum(1 for item in items if not item["is_paid"] and item["amount"] > 0)
 
@@ -273,6 +267,7 @@ class UtilityService:
             "area": apt.area or 60.0,
             "total_to_pay": round(total_to_pay, 2),
             "unpaid_count": unpaid_count,
+            "has_custom_accounts": has_custom_accounts,
             "items": items,
             "last_updated": datetime.now().strftime("%d.%m.%Y %H:%M")
         }

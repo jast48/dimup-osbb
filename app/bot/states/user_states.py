@@ -54,3 +54,10 @@ class UtilityAccountState(StatesGroup):
     """Состояния привязки и управления лицевыми счетами коммуналки"""
     waiting_for_provider = State()
     waiting_for_account_number = State()
+
+class UtilityWizardState(StatesGroup):
+    """Пошаговый мастер-опросник заполнения всех лицевых счетов"""
+    waiting_for_electricity = State()
+    waiting_for_gas = State()
+    waiting_for_water = State()
+    waiting_for_heating = State()
