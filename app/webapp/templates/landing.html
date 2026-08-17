@@ -57,7 +57,7 @@
       </h1>
 
       <p class="hero-subtitle">
-        Об'єднуємо правління, мешканців та перевірених майстрів в єдиному Telegram-боті. Голосові AI-заявки, 1-Click оплата комуналки, легітимні голосування та локальний маркетплейс послуг.
+        Об'єднуємо правління, мешканців та перевірених майстрів в єдиному Telegram-боті. <b>Єдиний комунальний хаб (усі квитанції та платіжки міста в одному місці)</b>, голосові AI-заявки, 1-Click оплати та локальний маркетплейс послуг.
       </p>
 
       <div class="hero-cta-group">
@@ -72,8 +72,8 @@
       <!-- Stats Bar -->
       <div class="stats-grid">
         <div class="stat-item">
-          <div class="stat-value highlight-cyan">15 хв</div>
-          <div class="stat-label">Середній час закриття аварії</div>
+          <div class="stat-value highlight-cyan">5 в 1</div>
+          <div class="stat-label">Усі платіжки міста в 1 квитанції</div>
         </div>
         <div class="stat-item">
           <div class="stat-value highlight-green">98.4%</div>
@@ -84,8 +84,8 @@
           <div class="stat-label">AI-Консьєрж без вихідних</div>
         </div>
         <div class="stat-item">
-          <div class="stat-value">0 грн</div>
-          <div class="stat-label">Витрат на серверне залізо</div>
+          <div class="stat-value">15 хв</div>
+          <div class="stat-label">Середній час закриття аварії</div>
         </div>
       </div>
     </div>
@@ -162,11 +162,16 @@
         <p class="section-desc">Ми створили платформу, яка автоматизує 90% рутини голови правління та дарує мешканцям комфорт проживання 5-зіркового готелю.</p>
       </div>
 
-      <div class="features-grid">
         <div class="feature-card">
-          <div class="feature-icon-wrap icon-cyan">🎙</div>
-          <h3 class="feature-title">Голосовий AI-Диспетчер</h3>
-          <p class="feature-desc">Мешканцям не треба заповнювати складні форми. Достатньо надиктувати голосове повідомлення або надіслати фото — AI сам створить картку заявки.</p>
+          <div class="feature-icon-wrap icon-cyan">🏛</div>
+          <h3 class="feature-title">Єдиний Комунальний Хаб</h3>
+          <p class="feature-desc">Усі платіжки міста в одному місці: ДТЕК, Yasno, Водоканал, Нафтогаз, Теплоенерго та квартплата ОСББ. Автоматичний збір нарахувань, нагадування та архів квитанцій за 5 років.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrap icon-green">💳</div>
+          <h3 class="feature-title">1-Click Оплата та Білінг</h3>
+          <p class="feature-desc">Миттєве формування єдиної квитанції, розбивка платежів, автонагадування боржникам та прийом оплат без черг через Apple Pay, Google Pay, Monobank та LiqPay.</p>
         </div>
 
         <div class="feature-card">
@@ -176,9 +181,9 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon-wrap icon-green">💳</div>
-          <h3 class="feature-title">Автоматизований Білінг</h3>
-          <p class="feature-desc">Миттєве формування квитанцій, розбивка платежів, автонагадування боржникам та прийом оплат без черг через Monobank та LiqPay.</p>
+          <div class="feature-icon-wrap icon-cyan">🎙</div>
+          <h3 class="feature-title">Голосовий AI-Диспетчер</h3>
+          <p class="feature-desc">Мешканцям не треба заповнювати складні форми. Достатньо надиктувати голосове повідомлення або надіслати фото — AI сам створить картку заявки.</p>
         </div>
 
         <div class="feature-card">
@@ -188,17 +193,10 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon-wrap icon-cyan">📊</div>
-          <h3 class="feature-title">Показники Лічильників</h3>
-          <p class="feature-desc">Зручне подання показників води, тепла та світла з 1 по 5 число кожного місяця з фотофіксацією та захистом від помилок введення.</p>
-        </div>
-
-        <div class="feature-card">
           <div class="feature-icon-wrap icon-purple">🛡</div>
           <h3 class="feature-title">Безпека та Верифікація</h3>
           <p class="feature-desc">Дворівневий захист доступу: тільки підтверджені мешканці та власники мають доступ до чату будинку, сплат та голосувань.</p>
         </div>
-      </div>
     </div>
   </section>
 
@@ -362,6 +360,16 @@
           </div>
           <div class="faq-answer">
             Абсолютно. Ми не зберігаємо дані банківських карток. Усі платежі проходять через захищені шлюзи ліцензованих українських банків (Monobank, ПриватБанк, LiqPay) з шифруванням за стандартом PCI DSS.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Як працює збір усіх міських комунальних квитанцій в одному місці?</span>
+            <span class="faq-toggle-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            DimUp автоматично підтягує нарахування від міських постачальників (світло від ДТЕК / Yasno, газ від Нафтогаз, холодна вода від Водоканалу, теплопостачання та внески ОСББ). Мешканець бачить єдину суму, може сплатити все в 1 клік або обрати окремі послуги, а квитанції автоматично архівуються у форматі PDF на 5 років.
           </div>
         </div>
 
