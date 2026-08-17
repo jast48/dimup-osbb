@@ -369,28 +369,13 @@ async def cb_order_proceed(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(MarketplaceOrderState.waiting_for_time, F.text)
-async def process_order_time(message: Message, state: FSMContext):
+async def process_order_time(message: Message, state: FSMContext, bot: Bot):
     pref_time = message.text.strip()
-    await state.update_data(preferred_time=pref_time)
-    
-    await message.answer(
-        "📝 Додайте <b>коментар для майстра</b> (опишіть проблему детальніше або відправте «-»):",
-        parse_mode="HTML"
-    )
-    await state.set_state(MarketplaceOrderState.waiting_for_comment)
-
-
-@router.message(MarketplaceOrderState.waiting_for_comment, F.text)
-async def process_order_comment(message: Message, state: FSMContext, bot: Bot):
-    comment = message.text.strip()
-    if comment == "-":
-        comment = None
-
     data = await state.get_data()
-    title = data.get("item_title", "Послуга майстра")
-    price = data.get("item_price", 0.0)
-    contractor = data.get("contractor_name", "Закріплений спеціаліст")
-    pref_time = data.get("preferred_time", "У найближчий час")
+    
+    title = data.get("item_title") or "Послуга майстра"
+    price = data.get("item_price", 450.0)
+    contractor = data.get("contractor_name") or "Закріплений спеціаліст"
     telegram_id = message.from_user.id
 
     async with async_session_maker() as session:
@@ -398,6 +383,7 @@ async def process_order_comment(message: Message, state: FSMContext, bot: Bot):
         user = user_res.scalar_one_or_none()
         if not user:
             await message.answer("⚠️ Будь ласка, зареєструйтесь через /start.")
+            await state.clear()
             return
 
         apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
@@ -411,7 +397,6 @@ async def process_order_comment(message: Message, state: FSMContext, bot: Bot):
             price_est=price,
             preferred_time=pref_time,
             contact_phone=user.phone or "Вказано в профілі",
-            comment=comment,
             status=ServiceOrderStatus.PENDING
         )
         session.add(order)
@@ -420,16 +405,24 @@ async def process_order_comment(message: Message, state: FSMContext, bot: Bot):
 
     await state.clear()
 
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📦 Мої замовлення", callback_data="mkt_my_orders")],
+            [InlineKeyboardButton(text="🔙 До маркетплейсу", callback_data="mkt_main_hub")]
+        ]
+    )
+
     confirm_text = (
-        f"🎉 <b>ЕЛЕКТРОННЕ ЗАМОВЛЕННЯ №{order_id:04d} ПРИЙНЯТО!</b>\n"
+        f"🎉 <b>ЕЛЕКТРОННЕ ЗАМОВЛЕННЯ №{order_id:04d} УСПІШНО ПРИЙНЯТО!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🛠 <b>Послуга:</b> {title}\n"
         f"👷‍♂️ <b>Призначений майстер:</b> {contractor}\n"
         f"💰 <b>Орієнтовна вартість:</b> від {price:.2f} грн\n"
-        f"⏰ <b>Бажаний час візиту:</b> {pref_time}\n"
+        f"⏰ <b>Бажаний час візиту:</b> <b>{pref_time}</b>\n"
         f"🏢 <b>Адреса:</b> Квартира №{apt_num}\n"
+        f"📌 <b>Статус:</b> ⏳ Очікує підтвердження майстром\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📞 <i>Майстер зв'яжеться з вами протягом 15 хвилин для підтвердження візиту. Оплата здійснюється після виконання робіт.</i>"
+        f"📞 <i>Майстер зв'яжеться з вами за номером <code>{user.phone or 'профілю'}</code> для підтвердження. Оплата здійснюється після виконання робіт.</i>"
     )
     await message.answer(confirm_text, reply_markup=get_main_menu_keyboard(user.role), parse_mode="HTML")
 
