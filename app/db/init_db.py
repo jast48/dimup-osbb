@@ -30,7 +30,14 @@ async def init_database():
         "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review TEXT",
         "ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)",
         "ALTER TABLE bills ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(100)",
-        "ALTER TABLE bills ADD COLUMN IF NOT EXISTS description VARCHAR(255)"
+        "ALTER TABLE bills ADD COLUMN IF NOT EXISTS description VARCHAR(255)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS contractor_category VARCHAR(50)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS contractor_company VARCHAR(100)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS contractor_rating FLOAT DEFAULT 5.0",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS contractor_orders_count INTEGER DEFAULT 0",
+        "ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS assigned_contractor_id INTEGER",
+        "ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS rating INTEGER",
+        "ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS review TEXT"
     ]
     for col_def in migration_statements:
         try:

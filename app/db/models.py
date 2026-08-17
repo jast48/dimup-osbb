@@ -77,12 +77,19 @@ class User(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.RESIDENT, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Дані підрядника / майстра (якщо role == CONTRACTOR або зареєстрований як майстер)
+    contractor_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    contractor_company: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    contractor_rating: Mapped[float] = mapped_column(Float, default=5.0)
+    contractor_orders_count: Mapped[int] = mapped_column(Integer, default=0)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     apartments: Mapped[List["Apartment"]] = relationship("Apartment", back_populates="resident")
     created_tickets: Mapped[List["Ticket"]] = relationship("Ticket", foreign_keys="Ticket.creator_id", back_populates="creator")
     assigned_tickets: Mapped[List["Ticket"]] = relationship("Ticket", foreign_keys="Ticket.assigned_to_id", back_populates="assigned_master")
-    service_orders: Mapped[List["ServiceOrder"]] = relationship("ServiceOrder", back_populates="user")
+    service_orders: Mapped[List["ServiceOrder"]] = relationship("ServiceOrder", foreign_keys="ServiceOrder.user_id", back_populates="user")
 
 
 class Apartment(Base):
@@ -171,9 +178,14 @@ class ServiceOrder(Base):
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     status: Mapped[ServiceOrderStatus] = mapped_column(SQLEnum(ServiceOrderStatus), default=ServiceOrderStatus.PENDING)
+    assigned_contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    review: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
-    user: Mapped["User"] = relationship("User", back_populates="service_orders")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="service_orders")
+    assigned_contractor: Mapped[Optional["User"]] = relationship("User", foreign_keys=[assigned_contractor_id])
     apartment: Mapped[Optional["Apartment"]] = relationship("Apartment", back_populates="service_orders")
 
 

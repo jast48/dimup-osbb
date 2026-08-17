@@ -8,8 +8,33 @@ from aiogram.types import (
 from app.config import settings
 from app.db.models import UserRole
 
+def get_contractor_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Нижня клавіатура для підрядника / майстра"""
+    keyboard = [
+        [
+            KeyboardButton(text="📥 Нові замовлення"),
+            KeyboardButton(text="📋 Мої активні роботи")
+        ],
+        [
+            KeyboardButton(text="⭐️ Рейтинг та відгуки"),
+            KeyboardButton(text="⚙️ Профіль майстра")
+        ],
+        [
+            KeyboardButton(text="🏠 Режим мешканця")
+        ]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        is_persistent=True
+    )
+
+
 def get_main_menu_keyboard(role: UserRole = UserRole.RESIDENT) -> ReplyKeyboardMarkup:
     """Компактная нижняя клавиатура"""
+    if role == UserRole.CONTRACTOR:
+        return get_contractor_menu_keyboard()
+
     keyboard = [
         [
             KeyboardButton(text="🔧 Заявка (AI)"),

@@ -61,3 +61,15 @@ class UtilityWizardState(StatesGroup):
     waiting_for_gas = State()
     waiting_for_water = State()
     waiting_for_heating = State()
+
+class ContractorRegistrationState(StatesGroup):
+    """Состояния регистрации подрядчика / мастера"""
+    waiting_for_category = State()
+    waiting_for_full_name = State()
+    waiting_for_company = State()
+    waiting_for_phone = State()
+
+class MarketplaceOrderState(StatesGroup):
+    """Состояния оформления заказа услуги жильцом"""
+    waiting_for_time = State()
+    waiting_for_comment = State()

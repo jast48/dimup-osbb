@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 
@@ -64,16 +64,34 @@ async def cmd_start(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
         else:
-            # Новый пользователь -> запускаем онбординг
+            # Новый пользователь -> выбор роли
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 Я мешканець будинку", callback_data="start_reg_resident")],
+                    [InlineKeyboardButton(text="🛠 Я підрядник / майстер", callback_data="start_register_contractor")]
+                ]
+            )
             await message.answer(
                 "👋 <b>Ласкаво просимо до DimUp!</b>\n\n"
-                "Це розумний помічник нашого будинку. Щоб користуватися системою, подавати заявки "
-                "та бачити нарахування, пройдіть коротку реєстрацію (це займе 30 секунд).\n\n"
-                "🔢 <b>Введіть номер вашої квартири</b> (наприклад: <code>5</code>):",
-                reply_markup=get_cancel_keyboard(),
+                "Це розумна екосистема нашого будинку.\n"
+                "Оберіть, як ви бажаєте зареєструватися в системі:",
+                reply_markup=kb,
                 parse_mode="HTML"
             )
-            await state.set_state(RegistrationState.waiting_for_apartment)
+
+
+@router.callback_query(F.data == "start_reg_resident")
+async def cb_start_reg_resident(callback: CallbackQuery, state: FSMContext):
+    """Початок онбордингу мешканця"""
+    await callback.answer()
+    await callback.message.delete()
+    await callback.message.answer(
+        "👋 <b>Реєстрація мешканця будинку</b>\n\n"
+        "🔢 <b>Введіть номер вашої квартири</b> (наприклад: <code>5</code>):",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML"
+    )
+    await state.set_state(RegistrationState.waiting_for_apartment)
 
 
 @router.message(F.text == "❌ Скасувати")

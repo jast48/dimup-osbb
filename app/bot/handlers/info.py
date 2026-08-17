@@ -352,12 +352,17 @@ async def cmd_profile(message: Message, state: FSMContext):
         f"<i>Для перегляду квитанцій скористайтеся кнопкою «📱 Кабінет».</i>"
     )
     
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Мої заявки (статуси та аудіо)", callback_data="resident_my_tickets")],
-            [InlineKeyboardButton(text="📊 Подати показники лічильників", callback_data="meters_start")]
-        ]
-    )
+    kb_buttons = [
+        [InlineKeyboardButton(text="📋 Мої заявки (статуси та аудіо)", callback_data="resident_my_tickets")],
+        [InlineKeyboardButton(text="📊 Подати показники лічильників", callback_data="meters_start")]
+    ]
+    
+    if user.role == UserRole.CONTRACTOR or user.contractor_category:
+        kb_buttons.append([InlineKeyboardButton(text="🛠 Панель підрядника (Замовлення)", callback_data="switch_to_contractor")])
+    else:
+        kb_buttons.append([InlineKeyboardButton(text="💼 Стати підрядником будинку", callback_data="start_register_contractor")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
     await message.answer(profile_text, reply_markup=kb, parse_mode="HTML")
 
 

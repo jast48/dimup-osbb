@@ -25,6 +25,7 @@ from app.bot.handlers.concierge import router as concierge_router
 from app.bot.handlers.info import router as info_router
 from app.bot.handlers.admin import router as admin_router
 from app.bot.handlers.marketplace import router as marketplace_router
+from app.bot.handlers.contractor import router as contractor_router
 from app.bot.handlers.payments import router as payments_router
 
 logging.basicConfig(
@@ -41,6 +42,7 @@ def get_dispatcher() -> Dispatcher:
     dp.include_router(tickets_router)
     dp.include_router(concierge_router)
     dp.include_router(marketplace_router)
+    dp.include_router(contractor_router)
     dp.include_router(payments_router)
     dp.include_router(info_router)
     dp.include_router(admin_router)

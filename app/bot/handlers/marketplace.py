@@ -3,7 +3,7 @@ from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_
 from app.db.session import async_session_maker
 from app.db.models import User, Apartment, ServiceOrder, ServiceOrderStatus, UserRole
 from app.bot.states.user_states import StatesGroup, State
@@ -507,7 +507,49 @@ async def finalize_marketplace_order(event: Message | CallbackQuery, state: FSMC
         await session.commit()
         order_id = order.id
 
+        # Отримуємо підрядників для надсилання сповіщення
+        masters_res = await session.execute(
+            select(User).where(
+                or_(User.role == UserRole.CONTRACTOR, User.contractor_category.isnot(None)),
+                User.telegram_id != telegram_id
+            )
+        )
+        registered_masters = masters_res.scalars().all()
+
     await state.clear()
+
+    # Надсилаємо сповіщення підрядникам
+    bot = event.bot if hasattr(event, "bot") else None
+    if bot:
+        for m in registered_masters:
+            if m.telegram_id:
+                try:
+                    master_kb = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                InlineKeyboardButton(text="✅ Прийняти замовлення", callback_data=f"master_accept_order_{order_id}"),
+                                InlineKeyboardButton(text="❌ Відхилити", callback_data=f"master_decline_order_{order_id}")
+                            ]
+                        ]
+                    )
+                    await bot.send_message(
+                        chat_id=m.telegram_id,
+                        text=(
+                            f"🔔 <b>НОВЕ ЗАМОВЛЕННЯ №{order_id:04d} В МАРКЕТПЛЕЙСІ!</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🛠 <b>Послуга:</b> {title}\n"
+                            f"💰 <b>Орієнтовна сума:</b> ~{price:.2f} грн\n"
+                            f"⏰ <b>Бажаний час:</b> <b>{pref_time}</b>\n"
+                            f"🏢 <b>Адреса:</b> Квартира №{apt_num}\n"
+                            f"📱 <b>Телефон клієнта:</b> <code>{user.phone or 'Вказано в базі'}</code>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                            f"<i>Бажаєте взяти це замовлення в роботу?</i>"
+                        ),
+                        reply_markup=master_kb,
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    pass
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
