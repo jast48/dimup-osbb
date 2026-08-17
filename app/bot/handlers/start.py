@@ -2,10 +2,10 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select
+from sqlalchemy import select, delete, or_
 
 from app.db.session import async_session_maker
-from app.db.models import User, Apartment, UserRole
+from app.db.models import User, Apartment, UserRole, Ticket, ServiceOrder, PollVote
 from app.bot.states.user_states import RegistrationState
 from app.bot.keyboards.keyboards import (
     get_main_menu_keyboard,
@@ -29,29 +29,23 @@ async def cmd_start(message: Message, state: FSMContext):
         result = await session.execute(select(User).where(User.telegram_id == telegram_id))
         user = result.scalar_one_or_none()
         
-        # Если это главный владелец и его еще нет в новой базе — создаем мгновенно!
-        if telegram_id == settings.ADMIN_TELEGRAM_ID:
-            if not user:
-                user = User(
-                    telegram_id=telegram_id,
-                    username=message.from_user.username,
-                    full_name="Олексій",
-                    role=UserRole.SUPER_ADMIN,
-                    is_verified=True
-                )
-                session.add(user)
-                await session.commit()
-                
-                # Привязываем к квартире 1 по умолчанию
-                apt_res = await session.execute(select(Apartment).where(Apartment.number == 1))
-                apt = apt_res.scalar_one_or_none()
-                if apt:
-                    apt.resident_id = user.id
-                    await session.commit()
-            else:
-                user.full_name = "Олексій"
-                user.role = UserRole.SUPER_ADMIN
-                user.is_verified = True
+        # Якщо користувача ще немає в базі і це ADMIN_ID — створюємо його за замовчуванням
+        if telegram_id == settings.ADMIN_TELEGRAM_ID and not user:
+            user = User(
+                telegram_id=telegram_id,
+                username=message.from_user.username,
+                full_name="Олексій",
+                role=UserRole.SUPER_ADMIN,
+                is_verified=True
+            )
+            session.add(user)
+            await session.commit()
+            
+            # Прив'язуємо до кв. 1 за замовчуванням
+            apt_res = await session.execute(select(Apartment).where(Apartment.number == 1))
+            apt = apt_res.scalar_one_or_none()
+            if apt:
+                apt.resident_id = user.id
                 await session.commit()
             
         if user:
@@ -217,6 +211,11 @@ async def cmd_reset_my_profile(message: Message, state: FSMContext):
         user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
         user = user_res.scalar_one_or_none()
         if user:
+            # Видаляємо залежні записи для уникнення FK конфліктів
+            await session.execute(delete(Ticket).where(or_(Ticket.creator_id == user.id, Ticket.assigned_to_id == user.id)))
+            await session.execute(delete(ServiceOrder).where(or_(ServiceOrder.user_id == user.id, ServiceOrder.assigned_contractor_id == user.id)))
+            await session.execute(delete(PollVote).where(PollVote.user_id == user.id))
+
             # Відв'язуємо від квартир
             apts_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
             apts = apts_res.scalars().all()
@@ -236,5 +235,62 @@ async def cmd_reset_my_profile(message: Message, state: FSMContext):
         "🔄 <b>Ваш профіль у боті успішно скинуто!</b>\n\n"
         "Оберіть, як ви бажаєте зареєструватися заново:",
         reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.message(Command("master"))
+@router.message(Command("contractor"))
+async def cmd_quick_switch_master(message: Message, state: FSMContext):
+    """Миттєве перемикання на роль підрядника"""
+    await state.clear()
+    telegram_id = message.from_user.id
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if user:
+            user.role = UserRole.CONTRACTOR
+            if not user.contractor_category:
+                user.contractor_category = "🚰 Сантехніка / Електрика"
+            await session.commit()
+            role = UserRole.CONTRACTOR
+        else:
+            user = User(
+                telegram_id=telegram_id,
+                username=message.from_user.username,
+                full_name=message.from_user.full_name or "Майстер",
+                role=UserRole.CONTRACTOR,
+                contractor_category="🚰 Сантехніка / Електрика",
+                contractor_company="Акредитований спеціаліст",
+                contractor_rating=5.0,
+                is_verified=True
+            )
+            session.add(user)
+            await session.commit()
+            role = UserRole.CONTRACTOR
+
+    await message.answer(
+        "🛠 <b>Ви миттєво перемкнулися в панель підрядника!</b>\n\n"
+        "Вам доступні розділи: <b>«📥 Нові замовлення»</b>, <b>«📋 Мої активні роботи»</b> та <b>«⭐️ Рейтинг та відгуки»</b>.",
+        reply_markup=get_main_menu_keyboard(role),
+        parse_mode="HTML"
+    )
+
+
+@router.message(Command("resident"))
+async def cmd_quick_switch_resident(message: Message, state: FSMContext):
+    """Миттєве перемикання на роль мешканця"""
+    await state.clear()
+    telegram_id = message.from_user.id
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if user:
+            user.role = UserRole.RESIDENT
+            await session.commit()
+
+    await message.answer(
+        "🏠 <b>Ви перемкнулися в режим мешканця будинку!</b>",
+        reply_markup=get_main_menu_keyboard(UserRole.RESIDENT),
         parse_mode="HTML"
     )
