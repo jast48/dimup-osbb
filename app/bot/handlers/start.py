@@ -1,6 +1,7 @@
+from pathlib import Path
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command, StateFilter
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, delete, or_
 
@@ -15,6 +16,8 @@ from app.bot.keyboards.keyboards import (
 from app.config import settings
 
 router = Router()
+
+LOGO_PATH = Path(__file__).resolve().parent.parent.parent / "webapp" / "static" / "images" / "logo.png"
 
 @router.message(CommandStart(), StateFilter("*"))
 async def cmd_start(message: Message, state: FSMContext):
@@ -50,10 +53,25 @@ async def cmd_start(message: Message, state: FSMContext):
             
         if user:
             # Пользователь уже зарегистрирован
-            await message.answer(
+            welcome_text = (
                 f"👋 Вітаємо, <b>{user.full_name}</b>!\n\n"
-                f"🏢 <b>DimUp</b> — цифрова система нашого будинку.\n"
-                f"Оберіть потрібний розділ меню нижче:",
+                f"🏢 <b>DimUp</b> — розумна екосистема нашого будинку.\n"
+                f"Оберіть потрібний розділ меню нижче:"
+            )
+            if LOGO_PATH.exists():
+                try:
+                    await message.answer_photo(
+                        photo=FSInputFile(str(LOGO_PATH)),
+                        caption=welcome_text,
+                        reply_markup=get_main_menu_keyboard(user.role),
+                        parse_mode="HTML"
+                    )
+                    return
+                except Exception:
+                    pass
+            
+            await message.answer(
+                welcome_text,
                 reply_markup=get_main_menu_keyboard(user.role),
                 parse_mode="HTML"
             )
@@ -65,10 +83,25 @@ async def cmd_start(message: Message, state: FSMContext):
                     [InlineKeyboardButton(text="🛠 Я підрядник / майстер", callback_data="start_register_contractor")]
                 ]
             )
-            await message.answer(
+            welcome_text = (
                 "👋 <b>Ласкаво просимо до DimUp!</b>\n\n"
-                "Це розумна екосистема нашого будинку.\n"
-                "Оберіть, як ви бажаєте зареєструватися в системі:",
+                "Це розумна цифрова екосистема нашого будинку на базі AI.\n"
+                "Оберіть, як ви бажаєте зареєструватися в системі:"
+            )
+            if LOGO_PATH.exists():
+                try:
+                    await message.answer_photo(
+                        photo=FSInputFile(str(LOGO_PATH)),
+                        caption=welcome_text,
+                        reply_markup=kb,
+                        parse_mode="HTML"
+                    )
+                    return
+                except Exception:
+                    pass
+
+            await message.answer(
+                welcome_text,
                 reply_markup=kb,
                 parse_mode="HTML"
             )
