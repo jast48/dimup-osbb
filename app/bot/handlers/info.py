@@ -1,6 +1,7 @@
+import io
 from datetime import datetime
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram import Router, F, Bot
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, desc
 from app.db.session import async_session_maker
@@ -19,8 +20,10 @@ from app.db.models import (
     MeterReading,
     UserRole
 )
-from app.bot.states.user_states import MeterReadingState
+from app.bot.states.user_states import MeterReadingState, MeterPhotoOCRState
 from app.bot.keyboards.keyboards import get_main_menu_keyboard, get_admin_panel_keyboard, get_cancel_keyboard
+from app.services.document_service import DocumentService
+from app.services.ai_service import AIService
 from app.config import settings
 
 router = Router()
@@ -82,6 +85,10 @@ async def cmd_webapp_info(message: Message, state: FSMContext):
     kb_buttons.append([
         InlineKeyboardButton(text="💳 Сплатити рахунок онлайн", callback_data="pay_bills_start"),
         InlineKeyboardButton(text="📊 Показники лічильників", callback_data="meters_start")
+    ])
+    kb_buttons.append([
+        InlineKeyboardButton(text="📄 Отримати довідку (PDF)", callback_data="resident_request_cert_menu"),
+        InlineKeyboardButton(text="📸 Фото-сканер AI", callback_data="meters_photo_start")
     ])
     kb_buttons.append([
         InlineKeyboardButton(text="🛠 Замовити платну послугу", callback_data="mkt_back_main")
@@ -525,3 +532,257 @@ async def cmd_admin_menu(message: Message, state: FSMContext):
         reply_markup=get_admin_panel_keyboard(),
         parse_mode="HTML"
     )
+
+
+# ==========================================
+# 6. ОФІЦІЙНІ ДОВІДКИ ДЛЯ МЕШКАНЦІВ
+# ==========================================
+
+@router.callback_query(F.data == "resident_request_cert_menu")
+async def cb_resident_request_cert(callback: CallbackQuery, bot: Bot):
+    """Генерація офіційної довідки про відсутність заборгованості з печаткою та QR-кодом"""
+    telegram_id = callback.from_user.id
+
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("Будь ласка, зареєструйтесь через /start", show_alert=True)
+            return
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await callback.answer("Вашу квартиру не знайдено в базі.", show_alert=True)
+            return
+
+    # Перевірка наявності заборгованості
+    if apt.balance < 0:
+        debt_val = abs(apt.balance)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Сплатити борг зараз", callback_data="pay_bills_start")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back_main")]
+            ]
+        )
+        await callback.message.edit_text(
+            f"⚠️ <b>Неможливо сформувати довідку про відсутність заборгованості!</b>\n\n"
+            f"За квартирою № <b>{apt.number}</b> обліковується борг: <b>{debt_val:.2f} грн</b>.\n\n"
+            f"Офіційні довідки для ЦНАП, банку чи субсидії видаються виключно після повного погашення заборгованості. "
+            f"Сплатіть рахунок в один клік нижче, після чого довідка згенерується миттєво.",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        return
+
+    await callback.answer("⏳ Генерація захищеної довідки з QR-кодом...", show_alert=False)
+
+    pdf_bytes = DocumentService.generate_certificate_pdf(
+        resident_name=user.full_name,
+        apartment_number=apt.number,
+        area=apt.area or 60.0,
+        balance=apt.balance
+    )
+
+    doc_file = BufferedInputFile(pdf_bytes, filename=f"Dovidka_Bez_Borgiv_Kvartira_{apt.number}.pdf")
+
+    caption = (
+        f"📄 <b>ОФІЦІЙНА ДОВІДКА ЗГЕНЕРОВАНА!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Власник:</b> {user.full_name}\n"
+        f"🏢 <b>Квартира:</b> №{apt.number} (Площа: {apt.area or 60.0} м²)\n"
+        f"🟢 <b>Стан:</b> Заборгованість ВІДСУТНЯ\n"
+        f"🔐 <b>Захист:</b> Документ містить унікальний QR-код для перевірки дійсності нотаріусом або ЦНАП.\n"
+        f"📅 Дійсна протягом 30 днів."
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 До кабінету", callback_data="utility_hub_main")]
+        ]
+    )
+
+    await callback.message.answer_document(document=doc_file, caption=caption, reply_markup=kb, parse_mode="HTML")
+
+
+# ==========================================
+# 7. AI VISION ФОТО-СКАНЕР ЛІЧИЛЬНИКІВ
+# ==========================================
+
+@router.callback_query(F.data == "meters_photo_start")
+async def cb_meters_photo_start(callback: CallbackQuery, state: FSMContext):
+    """Вибір типу лічильника для фото-розпізнавання через AI"""
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💧 Холодна вода", callback_data="photo_scan_cold_water")],
+            [InlineKeyboardButton(text="♨️ Гаряча вода", callback_data="photo_scan_hot_water")],
+            [InlineKeyboardButton(text="⚡️ Електроенергія", callback_data="photo_scan_electricity")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+        ]
+    )
+
+    text = (
+        "📸 <b>AI VISION: ПЕРЕДАЧА ПОКАЗНИКІВ ПО ФОТО</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Вам більше не потрібно вводити цифри вручну!\n\n"
+        "1. Оберіть тип лічильника нижче.\n"
+        "2. Сфотографуйте та надішліть фото циферблата лічильника у цей чат.\n"
+        "3. Штучний інтелект Gemini автоматично розпізнає цифри на коліщатках або екрані."
+    )
+
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("photo_scan_"))
+async def cb_photo_scan_select_type(callback: CallbackQuery, state: FSMContext):
+    meter_type = callback.data.replace("photo_scan_", "")
+    meter_labels = {
+        "cold_water": "💧 Холодна вода",
+        "hot_water": "♨️ Гаряча вода",
+        "electricity": "⚡️ Електроенергія"
+    }
+
+    await state.update_data(meter_type=meter_type)
+    await state.set_state(MeterPhotoOCRState.waiting_for_photo)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        f"📸 <b>{meter_labels.get(meter_type, 'Лічильник')}</b>\n\n"
+        f"Зробіть чітке фото лічильника, щоб було добре видно цифри, та надішліть його сюди:",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.message(MeterPhotoOCRState.waiting_for_photo, F.photo)
+async def handle_meter_photo_upload(message: Message, state: FSMContext, bot: Bot):
+    """Обробка фото лічильника за допомогою Gemini Vision"""
+    photo = message.photo[-1] # Максимальна роздільна здатність
+    data = await state.get_data()
+    meter_type = data.get("meter_type", "cold_water")
+
+    wait_msg = await message.answer("🔍 <i>AI сканує та розпізнає цифри на циферблаті лічильника...</i>", parse_mode="HTML")
+
+    file_io = io.BytesIO()
+    await bot.download(photo, destination=file_io)
+    image_bytes = file_io.getvalue()
+
+    result = await AIService.recognize_meter_photo(image_bytes=image_bytes, meter_type=meter_type)
+    await wait_msg.delete()
+
+    reading = result.get("reading")
+    if reading is not None and result.get("success", False):
+        reading_float = float(reading)
+        await state.update_data(recognized_reading=reading_float)
+        await state.set_state(MeterPhotoOCRState.confirming_reading)
+
+        conf_badge = "🟢 Висока" if result.get("confidence") == "high" else "🟡 Середня"
+
+        unit = "кВт·год" if meter_type == "electricity" else "м³"
+        text = (
+            f"✅ <b>AI УСПІШНО РОЗПІЗНАВ ПОКАЗНИК!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔢 <b>Значення:</b> <code>{reading_float}</code> {unit}\n"
+            f"🎯 <b>Точність розпізнавання:</b> {conf_badge}\n"
+        )
+        if result.get("serial_number"):
+            text += f"🏷 <b>Серійний номер:</b> <code>{result['serial_number']}</code>\n"
+
+        text += "\nПідтверджуєте збереження цих показників?"
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=f"✅ Так, зберегти ({reading_float} {unit})", callback_data="confirm_save_photo_reading")],
+                [InlineKeyboardButton(text="✏️ Ввести вручну", callback_data="meters_start")],
+                [InlineKeyboardButton(text="❌ Скасувати", callback_data="utility_hub_main")]
+            ]
+        )
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        err_msg = result.get("message", "Не вдалося розібрати цифри на фото")
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Спробувати інше фото", callback_data=f"photo_scan_{meter_type}")],
+                [InlineKeyboardButton(text="✏️ Ввести вручну", callback_data="meters_start")]
+            ]
+        )
+        await message.answer(
+            f"⚠️ <b>{err_msg}</b>\n\n"
+            f"Будь ласка, зробіть фото ближче, увімкніть спалах або введіть показник вручну.",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+
+
+@router.callback_query(MeterPhotoOCRState.confirming_reading, F.data == "confirm_save_photo_reading")
+async def cb_confirm_save_photo_reading(callback: CallbackQuery, state: FSMContext):
+    """Збереження розпізнаного показника в базу даних"""
+    data = await state.get_data()
+    meter_type = data.get("meter_type", "cold_water")
+    reading_val = data.get("recognized_reading", 0.0)
+    await state.clear()
+
+    telegram_id = callback.from_user.id
+    now = datetime.now()
+
+    async with async_session_maker() as session:
+        user_res = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            await callback.answer("Користувача не знайдено", show_alert=True)
+            return
+
+        apt_res = await session.execute(select(Apartment).where(Apartment.resident_id == user.id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await callback.answer("Квартиру не знайдено", show_alert=True)
+            return
+
+        # Шукаємо запис за поточний місяць
+        mr_res = await session.execute(
+            select(MeterReading).where(
+                MeterReading.apartment_id == apt.id,
+                MeterReading.month == now.month,
+                MeterReading.year == now.year
+            )
+        )
+        reading_entry = mr_res.scalar_one_or_none()
+
+        if not reading_entry:
+            reading_entry = MeterReading(
+                apartment_id=apt.id,
+                month=now.month,
+                year=now.year
+            )
+            session.add(reading_entry)
+
+        if meter_type == "cold_water":
+            reading_entry.cold_water = reading_val
+        elif meter_type == "hot_water":
+            reading_entry.hot_water = reading_val
+        elif meter_type == "electricity":
+            reading_entry.electricity = reading_val
+
+        await session.commit()
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📱 До кабінету", callback_data="utility_hub_main")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        f"🎉 <b>ПОКАЗНИКИ УСПІШНО ЗБЕРЕЖЕНО!</b>\n\n"
+        f"📍 Квартира: №{apt.number}\n"
+        f"📅 Період: {now.month}/{now.year}\n"
+        f"🔢 Зафіксовано: <b>{reading_val}</b>\n\n"
+        f"Дані внесено до реєстру та передано до бухгалтерії ОСББ.",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+

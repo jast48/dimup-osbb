@@ -73,3 +73,28 @@ class MarketplaceOrderState(StatesGroup):
     """Состояния оформления заказа услуги жильцом"""
     waiting_for_time = State()
     waiting_for_comment = State()
+
+class MeterPhotoOCRState(StatesGroup):
+    """Стан розпізнавання лічильника по фото через AI Vision"""
+    waiting_for_meter_type = State()
+    waiting_for_photo = State()
+    confirming_reading = State()
+
+class AdminBankSyncState(StatesGroup):
+    """Стан завантаження та імпорту банківської виписки"""
+    waiting_for_file = State()
+
+class AdminDebtNoticeState(StatesGroup):
+    """Стан формування досудової претензії до боржника"""
+    waiting_for_apartment = State()
+
+class OfficialCertificateState(StatesGroup):
+    """Стан замовлення офіційної довідки мешканцем"""
+    waiting_for_type = State()
+
+class AdminAIBroadcastState(StatesGroup):
+    """Стан створення розумної розсилки з AI-покращенням"""
+    waiting_for_draft = State()
+    waiting_for_target = State()
+    confirming = State()
+

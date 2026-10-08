@@ -131,6 +131,97 @@ class AIService:
             return "Вибачте, сталася тимчасова помилка при обробці запиту."
 
     @staticmethod
+    async def recognize_meter_photo(
+        image_bytes: bytes,
+        image_mime_type: str = "image/jpeg",
+        meter_type: str = "water"
+    ) -> Dict[str, Any]:
+        """
+        AI Vision OCR: Розпізнає цифри та показники з фото лічильника (вода, світло, газ).
+        Повертає значення у форматі float, серійний номер (якщо видно) та впевненість.
+        """
+        if not gemini_model:
+            return {
+                "success": False,
+                "reading": None,
+                "confidence": "low",
+                "message": "AI Vision недоступний (перевірте GEMINI_API_KEY)"
+            }
+
+        prompt = f"""
+Ти — високоточний AI-сканер комунальних лічильників (лічильник: {meter_type}).
+Проаналізуй фото лічильника та розпізнай поточні цифрові показники на механічних коліщатках або цифровому дисплеї.
+
+Вказівки:
+1. Звертай увагу на чорні цифри (цілі кубічні метри / кВт·год) та червоні цифри (дробова частина / літри).
+2. Поверни значення як число з плаваючою крапкою (наприклад, 142.35 або 528).
+3. Якщо на лічильнику видно серійний номер (заводський номер) — витягни його.
+4. Оціни впевненість розпізнавання: "high", "medium", "low".
+
+Поверни результат ВИКЛЮЧНО у валідному JSON форматі:
+{{
+  "success": true,
+  "reading": 142.35,
+  "serial_number": "12345678",
+  "confidence": "high",
+  "comment": "Показник успішно розпізнано"
+}}
+"""
+        try:
+            content_parts = [
+                prompt,
+                {
+                    "mime_type": image_mime_type,
+                    "data": image_bytes
+                }
+            ]
+            response = gemini_model.generate_content(
+                content_parts,
+                generation_config={"response_mime_type": "application/json"}
+            )
+            data = json.loads(response.text)
+            return data
+        except Exception as e:
+            logger.error(f"Error during meter OCR with Gemini: {e}")
+            return {
+                "success": False,
+                "reading": None,
+                "confidence": "low",
+                "message": f"Не вдалося розпізнати показники: {str(e)}"
+            }
+
+    @staticmethod
+    async def polish_announcement(raw_text: str) -> str:
+        """
+        AI-редактор для голови ОСББ: перетворює чорновий текст або надиктовану нотатку
+        на офіційне, доброзичливе та гарно відформатоване оголошення для чату мешканців.
+        """
+        if not gemini_model:
+            return raw_text
+
+        prompt = f"""
+Ти — помічник голови ОСББ системи DimUp.
+Перетвори наступний чорновий текст або замітку голови правління на офіційне, зрозуміле,
+ввічливе та структуроване повідомлення для мешканців будинку українською мовою.
+
+Вимоги:
+- Зроби влучний заголовок з емодзі.
+- Чітко виділи дати, години та суть події жирним шрифтом (HTML теги <b>, <i>).
+- Якщо це відключення чи ремонт — додай практичну пораду (наприклад, «просимо зробити запас води»).
+- Закінчи ввічливим підписом від правління ОСББ.
+- Не використовуй markdown (**), використовуй ТІЛЬКИ валідні Telegram HTML-теги: <b>, <i>, <u>, <code>.
+
+Чорновик від голови:
+"{raw_text}"
+"""
+        try:
+            response = gemini_model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            logger.error(f"Error polishing announcement: {e}")
+            return raw_text
+
+    @staticmethod
     def _fallback_classification(description: str) -> Dict[str, Any]:
         desc_lower = description.lower()
         category = "other"

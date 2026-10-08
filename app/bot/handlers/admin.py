@@ -1,10 +1,11 @@
 import logging
+import io
 from datetime import datetime
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select, desc, delete, or_
+from sqlalchemy import select, desc, delete, or_, func
 from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.db.session import async_session_maker
@@ -14,8 +15,14 @@ from app.bot.states.user_states import (
     AdminBillState,
     AdminSplitBillState,
     AdminPollState,
-    AdminPollEditState
+    AdminPollEditState,
+    AdminBankSyncState,
+    AdminDebtNoticeState,
+    AdminAIBroadcastState
 )
+from app.services.document_service import DocumentService
+from app.services.bank_sync_service import BankSyncService
+from app.services.ai_service import AIService
 from app.bot.keyboards.keyboards import get_main_menu_keyboard, get_admin_panel_keyboard, get_cancel_keyboard
 from app.bot.handlers.tickets import CATEGORY_NAMES, URGENCY_NAMES
 
@@ -1520,3 +1527,500 @@ async def cmd_make_admin(message: Message, bot: Bot):
 async def cb_admin_back(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("Ви повернулися в головне меню.", reply_markup=get_main_menu_keyboard(UserRole.ADMIN))
+
+
+# ==========================================
+# 8. ПРЕТЕНЗІЙНО-ДОСУДОВА РОБОТА З БОРГАМИ
+# ==========================================
+
+@router.callback_query(F.data == "admin_debt_claims_menu")
+async def cb_admin_debt_claims_menu(callback: CallbackQuery):
+    """Список боржників будинку та формування досудових претензій у PDF"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    async with async_session_maker() as session:
+        # Шукаємо квартири з негативним балансом (борг)
+        res = await session.execute(
+            select(Apartment).where(Apartment.balance < 0).order_by(Apartment.balance.asc()).limit(15)
+        )
+        debtors = res.scalars().all()
+
+    if not debtors:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+            ]
+        )
+        await callback.message.edit_text(
+            "🎉 <b>Чудові новини!</b>\n\n"
+            "Усі квартири будинку сплачують вчасно або мають переплату. Боржників не виявлено! 👏",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        return
+
+    total_debt = sum(abs(d.balance) for d in debtors)
+
+    text = (
+        f"⚖️ <b>ПРЕТЕНЗІЙНО-ДОСУДОВА РОБОТА З БОРГАМИ</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔴 Всього боржників у списку: <b>{len(debtors)}</b>\n"
+        f"💰 Загальна сума прострочки: <b>{total_debt:,.2f} грн</b>\n\n"
+        f"<i>Оберіть квартиру для формування офіційної досудової вимоги з розрахунком 3% річних (ст. 625 ЦК України) та передачі до суду:</i>\n\n"
+    )
+
+    buttons = []
+    for d in debtors:
+        debt_val = abs(d.balance)
+        text += f"• Кв. №<b>{d.number}</b> — борг: <b>{debt_val:.2f} грн</b> (Площа: {d.area or 60.0} м²)\n"
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"📄 Сформувати вимогу (кв. №{d.number} • {debt_val:.0f} грн)",
+                callback_data=f"admin_gen_claim_{d.id}"
+            )
+        ])
+
+    buttons.append([InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("admin_gen_claim_"))
+async def cb_admin_generate_debt_claim(callback: CallbackQuery, bot: Bot):
+    """Генерація PDF досудової претензії та відправка голові"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    apt_id = int(callback.data.replace("admin_gen_claim_", ""))
+
+    async with async_session_maker() as session:
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == apt_id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt:
+            await callback.answer("Квартиру не знайдено.", show_alert=True)
+            return
+
+        debtor_name = "Власник квартири"
+        debtor_telegram_id = None
+        if apt.resident_id:
+            user_res = await session.execute(select(User).where(User.id == apt.resident_id))
+            user = user_res.scalar_one_or_none()
+            if user:
+                debtor_name = user.full_name
+                debtor_telegram_id = user.telegram_id
+
+    debt_val = abs(apt.balance)
+    await callback.answer("⏳ Формування офіційного PDF-документа...", show_alert=False)
+
+    pdf_bytes = DocumentService.generate_debt_claim_pdf(
+        debtor_name=debtor_name,
+        apartment_number=apt.number,
+        area=apt.area or 60.0,
+        debt_amount=debt_val,
+        days_overdue=180
+    )
+
+    filename = f"Pretensiya_Kvartira_{apt.number}.pdf"
+    doc_file = BufferedInputFile(pdf_bytes, filename=filename)
+
+    caption = (
+        f"⚖️ <b>ОФІЦІЙНА ДОСУДОВА ВИМОГА СФОРМОВАНА</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📍 <b>Квартира:</b> №{apt.number}\n"
+        f"👤 <b>Боржник:</b> {debtor_name}\n"
+        f"💰 <b>Основний борг:</b> {debt_val:.2f} грн\n"
+        f"📈 <b>+ 3% річних та інфляційні (ст. 625 ЦК України)</b>\n"
+        f"🔐 Містить реквізити, печатку та QR-код швидкої оплати.\n\n"
+        f"<i>Документ готовий до роздруківки, відправки рекомендованим листом з описом вкладення або в чат боржнику:</i>"
+    )
+
+    action_buttons = []
+    if debtor_telegram_id:
+        action_buttons.append([
+            InlineKeyboardButton(
+                text="📲 Надіслати боржнику в Telegram",
+                callback_data=f"admin_send_claim_res_{apt.id}"
+            )
+        ])
+    action_buttons.append([
+        InlineKeyboardButton(text="🔙 До списку боржників", callback_data="admin_debt_claims_menu")
+    ])
+    kb = InlineKeyboardMarkup(inline_keyboard=action_buttons)
+
+    await callback.message.answer_document(document=doc_file, caption=caption, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("admin_send_claim_res_"))
+async def cb_admin_send_claim_to_resident(callback: CallbackQuery, bot: Bot):
+    """Пряма відправка досудової претензії в приватний чат боржника"""
+    apt_id = int(callback.data.replace("admin_send_claim_res_", ""))
+
+    async with async_session_maker() as session:
+        apt_res = await session.execute(select(Apartment).where(Apartment.id == apt_id))
+        apt = apt_res.scalar_one_or_none()
+        if not apt or not apt.resident_id:
+            await callback.answer("Боржник не зареєстрований у боті.", show_alert=True)
+            return
+
+        user_res = await session.execute(select(User).where(User.id == apt.resident_id))
+        user = user_res.scalar_one_or_none()
+
+    if not user or not user.telegram_id:
+        await callback.answer("У користувача немає діючого Telegram акаунту.", show_alert=True)
+        return
+
+    debt_val = abs(apt.balance)
+    pdf_bytes = DocumentService.generate_debt_claim_pdf(
+        debtor_name=user.full_name,
+        apartment_number=apt.number,
+        area=apt.area or 60.0,
+        debt_amount=debt_val
+    )
+
+    doc_file = BufferedInputFile(pdf_bytes, filename=f"Dosudova_Vymoga_Kvartira_{apt.number}.pdf")
+    resident_caption = (
+        f"⚠️ <b>ОФІЦІЙНЕ ПОВІДОМЛЕННЯ ВІД ПРАВЛІННЯ ОСББ</b>\n\n"
+        f"Шановний(а) <b>{user.full_name}</b>!\n"
+        f"За квартирою № <b>{apt.number}</b> зафіксовано прострочену заборгованість: <b>{debt_val:.2f} грн</b>.\n\n"
+        f"Надсилаємо Вам офіційну досудову вимогу. "
+        f"Будь ласка, терміново здійсніть оплату або зверніться до правління для укладання договору реструктуризації "
+        f"задля уникнення судового стягнення та накладення арешту на рахунки."
+    )
+
+    pay_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Сплатити борг зараз", callback_data="pay_bills_start")]
+        ]
+    )
+
+    try:
+        await bot.send_document(
+            chat_id=user.telegram_id,
+            document=doc_file,
+            caption=resident_caption,
+            reply_markup=pay_kb,
+            parse_mode="HTML"
+        )
+        await callback.answer("✅ Досудову вимогу успішно надіслано в чат мешканця!", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"Помилка відправки: {str(e)[:50]}", show_alert=True)
+
+
+# ==========================================
+# 9. АВТО-РОЗНЕСЕННЯ БАНКІВСЬКИХ ВИПИСОК
+# ==========================================
+
+@router.callback_query(F.data == "admin_bank_sync_menu")
+async def cb_admin_bank_sync_menu(callback: CallbackQuery, state: FSMContext):
+    """Екран завантаження банківської виписки (Privat24 / Monobank CSV)"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    await state.set_state(AdminBankSyncState.waiting_for_file)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="admin_back_main")]
+        ]
+    )
+
+    text = (
+        "🏦 <b>АВТОМАТИЧНИЙ ІМПОРТ БАНКІВСЬКОЇ ВИПИСКИ</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Система автоматично розпізнає номери квартир у призначенні платежів "
+        "(<i>«кв. 45», «о/р 12», «квартира 108»</i>), оновить баланси та закриє неоплачені рахунки.\n\n"
+        "📥 <b>Надішліть у цей чат:</b>\n"
+        "1. Файл банківської виписки у форматі <b>.csv</b> або <b>.txt</b>\n"
+        "2. Або скопіюйте та надішліть текст виписки простим повідомленням."
+    )
+
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.message(AdminBankSyncState.waiting_for_file)
+async def handle_bank_statement_input(message: Message, state: FSMContext, bot: Bot):
+    """Обробка завантаженого файлу або тексту виписки"""
+    csv_text = ""
+
+    if message.document:
+        doc = message.document
+        if not (doc.file_name.endswith(".csv") or doc.file_name.endswith(".txt")):
+            await message.answer("⚠️ Будь ласка, надішліть файл у форматі .csv або .txt, або скопіюйте текст.")
+            return
+
+        file_io = io.BytesIO()
+        await bot.download(doc, destination=file_io)
+        file_io.seek(0)
+        csv_text = file_io.read().decode("utf-8", errors="replace")
+    elif message.text:
+        csv_text = message.text
+    else:
+        await message.answer("⚠️ Очікується текстовий файл .csv або текстове повідомлення.")
+        return
+
+    await state.clear()
+    loading_msg = await message.answer("🔄 <i>Обробка та рознесення банківських платежів...</i>", parse_mode="HTML")
+
+    async with async_session_maker() as session:
+        result = await BankSyncService.process_bank_statement_csv(session, csv_text)
+
+    await loading_msg.delete()
+
+    matched_cnt = result["matched_count"]
+    unmatched_cnt = result["unmatched_count"]
+    total_amt = result["total_credited_amount"]
+
+    report_text = (
+        f"✅ <b>РЕЗУЛЬТАТ РОЗНЕСЕННЯ БАНКІВСЬКОЇ ВИПИСКИ:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Оброблено рядків: <b>{result['total_processed']}</b>\n"
+        f"🟢 Успішно розпізнано: <b>{matched_cnt} платежів</b>\n"
+        f"💰 Зараховано на рахунки: <b>{total_amt:,.2f} грн</b>\n"
+    )
+
+    if result["matched_records"]:
+        report_text += "\n<b>Останні зараховані платежі:</b>\n"
+        for r in result["matched_records"][:7]:
+            report_text += f"• Кв. №{r['apartment_number']} +{r['amount']:.2f} грн (залишок: {r['new_balance']:.2f} грн)\n"
+
+    if unmatched_cnt > 0:
+        report_text += f"\n⚠️ <i>Не вдалося розпізнати: {unmatched_cnt} рядків (перевірте призначення платежу).</i>\n"
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+        ]
+    )
+
+    await message.answer(report_text, reply_markup=kb, parse_mode="HTML")
+
+
+# ==========================================
+# 10. ГОЛОСУВАННЯ ЗА ПЛОЩЕЮ (ЗАКОН № 417-VIII)
+# ==========================================
+
+@router.callback_query(F.data == "admin_polls_menu")
+async def cb_admin_polls_menu(callback: CallbackQuery):
+    """Меню опитувань та протоколів голосування з юридичною силою"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    async with async_session_maker() as session:
+        polls_res = await session.execute(select(Poll).order_by(desc(Poll.id)).limit(10))
+        polls = polls_res.scalars().all()
+
+    buttons = [
+        [InlineKeyboardButton(text="➕ Створити нове опитування", callback_data="admin_new_poll")]
+    ]
+
+    text = (
+        "🗳 <b>ГОЛОСУВАННЯ ТА ОПИТУВАННЯ (ЗАКОН № 417-VIII)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Вага кожного голосу автоматично розраховується <b>пропорційно площі квартири (м²)</b>, "
+        "як вимагає законодавство України про ОСББ.\n\n"
+        "<i>Оберіть опитування для експорту офіційного протоколу з розрахунком кворуму в PDF:</i>\n\n"
+    )
+
+    for p in polls:
+        status_icon = "🟢 Активне" if p.is_active else "📦 Завершене"
+        text += f"• <b>{p.title}</b> ({status_icon})\n"
+        buttons.append([
+            InlineKeyboardButton(text=f"📑 Експорт протоколу PDF (№{p.id})", callback_data=f"admin_export_poll_{p.id}")
+        ])
+
+    buttons.append([InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("admin_export_poll_"))
+async def cb_admin_export_poll_pdf(callback: CallbackQuery):
+    """Генерація офіційного Протоколу голосування співвласників у PDF"""
+    poll_id = int(callback.data.replace("admin_export_poll_", ""))
+
+    async with async_session_maker() as session:
+        poll_res = await session.execute(
+            select(Poll).options(selectinload(Poll.options).selectinload(PollOption.votes)).where(Poll.id == poll_id)
+        )
+        poll = poll_res.scalar_one_or_none()
+
+        if not poll:
+            await callback.answer("Опитування не знайдено.", show_alert=True)
+            return
+
+        # Рахуємо загальну площу будинку
+        apt_res = await session.execute(select(Apartment))
+        apartments = apt_res.scalars().all()
+        total_building_area = sum(a.area or 60.0 for a in apartments) or 3500.0
+
+        # Збираємо голоси та прив'язку до площ
+        options_stats = []
+        total_voted_area = 0.0
+
+        for opt in poll.options:
+            opt_votes_count = len(opt.votes)
+            opt_area = 0.0
+            for vote in opt.votes:
+                # Знаходимо площу квартири того, хто проголосував
+                apt_match = next((a for a in apartments if a.resident_id == vote.user_id), None)
+                voter_area = apt_match.area if (apt_match and apt_match.area) else 60.0
+                opt_area += voter_area
+
+            total_voted_area += opt_area
+            options_stats.append({
+                "text": opt.text,
+                "votes_count": opt_votes_count,
+                "area_sum": opt_area
+            })
+
+    pdf_bytes = DocumentService.generate_voting_protocol_pdf(
+        poll_title=poll.title,
+        poll_description=poll.description or "",
+        total_building_area=total_building_area,
+        options_stats=options_stats,
+        voted_area_sum=total_voted_area
+    )
+
+    doc_file = BufferedInputFile(pdf_bytes, filename=f"Protokol_Zboriv_Poll_{poll.id}.pdf")
+    caption = (
+        f"📑 <b>ЮРИДИЧНИЙ ПРОТОКОЛ ГОЛОСУВАННЯ СФОРМОВАНО</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 <b>Питання:</b> {poll.title}\n"
+        f"🏢 <b>Загальна площа будинку:</b> {total_building_area:,.1f} м²\n"
+        f"🗳 <b>Проголосувало:</b> {total_voted_area:,.1f} м² ({(total_voted_area / total_building_area * 100):.1f}%)\n\n"
+        f"<i>Документ містить повний розрахунок кворуму за нормами Закону № 417-VIII та поля для підписів лічильної комісії.</i>"
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 До списку опитувань", callback_data="admin_polls_menu")]
+        ]
+    )
+
+    await callback.message.answer_document(document=doc_file, caption=caption, reply_markup=kb, parse_mode="HTML")
+
+
+# ==========================================
+# 11. РОЗУМНА AI-РОЗСИЛКА ТА ТАРГЕТИНГ
+# ==========================================
+
+@router.callback_query(F.data == "admin_ai_broadcast_start")
+async def cb_admin_ai_broadcast_start(callback: CallbackQuery, state: FSMContext):
+    """Початок створення AI-розсилки"""
+    if not await is_admin_user(callback.from_user.id):
+        await callback.answer("⛔️ Доступ заборонено.", show_alert=True)
+        return
+
+    await state.set_state(AdminAIBroadcastState.waiting_for_draft)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="admin_back_main")]
+        ]
+    )
+
+    text = (
+        "🤖 <b>AI-РЕДАКТОР ОГОЛОШЕНЬ ДЛЯ ГОЛОВИ ОСББ</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Напишіть будь-який чорновий текст або надиктуйте голосом "
+        "(наприклад: <i>«завтра з 10 до 14 не буде холодної води у 2 під'їзді міняємо засувку»</i>).\n\n"
+        "✨ Штучний інтелект Gemini автоматично:\n"
+        "• Оформить влучний заголовок та емодзі;\n"
+        "• Виділить години та дати;\n"
+        "• Додасть ввічливі поради мешканцям;\n"
+        "• Підпише від імені правління ОСББ."
+    )
+
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.message(AdminAIBroadcastState.waiting_for_draft)
+async def handle_ai_broadcast_draft(message: Message, state: FSMContext):
+    """Покращення чорновика через Gemini AI"""
+    raw_text = message.text or (message.caption if message.photo else "")
+    if not raw_text:
+        await message.answer("⚠️ Будь ласка, напишіть текст оголошення.")
+        return
+
+    wait_msg = await message.answer("✨ <i>AI оптимізує та структурує Ваше оголошення...</i>", parse_mode="HTML")
+    polished_text = await AIService.polish_announcement(raw_text)
+    await wait_msg.delete()
+
+    await state.update_data(polished_text=polished_text)
+    await state.set_state(AdminAIBroadcastState.waiting_for_target)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Усім мешканцям будинку", callback_data="target_all")],
+            [InlineKeyboardButton(text="🔴 Тільки боржникам", callback_data="target_debtors")],
+            [InlineKeyboardButton(text="🚪 Під'їзд №1", callback_data="target_entrance_1"), InlineKeyboardButton(text="🚪 Під'їзд №2", callback_data="target_entrance_2")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="admin_back_main")]
+        ]
+    )
+
+    preview_text = (
+        f"📝 <b>ПОПЕРЕДНІЙ ПЕРЕГЛЯД AI-ОГОЛОШЕННЯ:</b>\n\n"
+        f"{polished_text}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎯 <b>Оберіть аудиторію для розсилки:</b>"
+    )
+
+    await message.answer(preview_text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(AdminAIBroadcastState.waiting_for_target, F.data.startswith("target_"))
+async def handle_ai_broadcast_send(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    """Відправка оголошення обраній аудиторії"""
+    target = callback.data
+    data = await state.get_data()
+    polished_text = data.get("polished_text", "")
+    await state.clear()
+
+    async with async_session_maker() as session:
+        if target == "target_debtors":
+            # Тільки боржникам
+            res = await session.execute(
+                select(User).join(Apartment, Apartment.resident_id == User.id).where(Apartment.balance < 0)
+            )
+            users = res.scalars().all()
+        elif "entrance" in target:
+            # Певний під'їзд
+            ent_num = int(target.split("_")[-1])
+            res = await session.execute(
+                select(User).join(Apartment, Apartment.resident_id == User.id).where(Apartment.entrance == ent_num)
+            )
+            users = res.scalars().all()
+        else:
+            # Усім користувачам
+            res = await session.execute(select(User))
+            users = res.scalars().all()
+
+    sent_count = 0
+    for u in users:
+        if u.telegram_id:
+            try:
+                await bot.send_message(u.telegram_id, polished_text, parse_mode="HTML")
+                sent_count += 1
+            except Exception:
+                continue
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Панель правління", callback_data="admin_back_main")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        f"🚀 <b>Оголошення успішно розіслано!</b>\n\n"
+        f"✅ Доставлено адресатам: <b>{sent_count} мешканцям</b>.",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
