@@ -65,8 +65,8 @@ def create_app() -> FastAPI:
     if render_url:
         settings.WEBAPP_URL = f"{render_url.rstrip('/')}/webapp"
 
-    @app.get("/")
-    async def root():
+    @app.get("/health")
+    async def health():
         return {
             "system": "DimUp Smart OSBB",
             "status": "online"

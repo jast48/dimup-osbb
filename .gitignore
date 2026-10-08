@@ -24,3 +24,6 @@ cloudflared.exe
 .vscode/
 .idea/
 .DS_Store
+
+# Backups
+dimup_osbb_backup/

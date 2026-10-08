@@ -173,4 +173,42 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // 6. Lead Registration Form Handler
+  const leadForm = document.getElementById('leadForm');
+  const formSuccess = document.getElementById('formSuccess');
+
+  if (leadForm) {
+    leadForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const osbbName = document.getElementById('osbbName').value.trim();
+      const osbbCity = document.getElementById('osbbCity').value.trim();
+      const osbbApts = document.getElementById('osbbApts').value.trim();
+      const contactName = document.getElementById('contactName').value.trim();
+      const contactPhone = document.getElementById('contactPhone').value.trim();
+
+      // Show success message
+      if (formSuccess) {
+        formSuccess.style.display = 'block';
+        formSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      // Compose Telegram text with lead info
+      const text = encodeURIComponent(
+        `👋 Нова заявка на підключення ОСББ (100 грн):\n` +
+        `🏢 ОСББ/Адреса: ${osbbName}\n` +
+        `📍 Місто: ${osbbCity}\n` +
+        `🚪 Квартир: ${osbbApts}\n` +
+        `👤 Контакт: ${contactName}\n` +
+        `📞 Телефон: ${contactPhone}`
+      );
+
+      // Open manager Telegram after a brief moment
+      setTimeout(() => {
+        window.open(`https://t.me/managerAndrii?text=${text}`, '_blank');
+      }, 800);
+    });
+  }
 });
+
