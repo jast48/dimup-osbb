@@ -1,0 +1,2596 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DimApp | Моє ОСББ — Керуємо будинком, дружимо з мешканцями (Підключення за 100 грн)</title>
+  <meta name="description" content="DimApp — онлайн сервіс та розумна система для ОСББ та управляючих компаній. Тут є все: від бухгалтерії та розрахунків до кабінетів у Telegram та 1-Click оплат. Підключення будинку всього 100 грн!">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="64x64" href="./app/webapp/static/images/favicon.png?v=2">
+  <link rel="apple-touch-icon" sizes="128x128" href="./app/webapp/static/images/favicon-128.png?v=2">
+  
+  <!-- Styles -->
+  <style>@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-main: #f8fafc;
+  --bg-section-alt: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  
+  --border-light: #e2e8f0;
+  --border-glass: rgba(0, 87, 183, 0.12);
+  --border-hover: rgba(0, 87, 183, 0.35);
+  
+  --primary: #0057b7;
+  --primary-hover: #004394;
+  --primary-glow: rgba(0, 87, 183, 0.25);
+  --primary-light: #eff6ff;
+  
+  --secondary: #0284c7;
+  --secondary-glow: rgba(2, 132, 199, 0.25);
+  
+  --accent-emerald: #059669;
+  --accent-emerald-light: #ecfdf5;
+  --accent-amber: #d97706;
+  --accent-amber-light: #fffbeb;
+  
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+  
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 10px 30px -5px rgba(0, 87, 183, 0.08);
+  --shadow-lg: 0 20px 40px -10px rgba(0, 87, 183, 0.12);
+  --shadow-hover: 0 22px 45px -10px rgba(0, 87, 183, 0.18);
+  
+  --transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  line-height: 1.6;
+  position: relative;
+}
+
+/* Light Mode Ambient Glow Gradients */
+.ambient-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+}
+
+.glow-1 {
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 750px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.25) 0%, rgba(0, 87, 183, 0.15) 50%, transparent 80%);
+}
+
+.glow-2 {
+  top: 1400px;
+  left: -120px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(224, 231, 255, 0.9) 0%, transparent 70%);
+}
+
+.glow-3 {
+  top: 2800px;
+  right: -100px;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(209, 250, 229, 0.8) 0%, transparent 70%);
+}
+
+/* Container */
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Typography & Badges */
+h1, h2, h3, h4, .brand-logo {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #0f172a 20%, #0057b7 70%, #0284c7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-emerald {
+  background: linear-gradient(135deg, #0f172a 20%, #059669 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-cyan {
+  color: var(--primary);
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+}
+
+.badge-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent-emerald);
+  box-shadow: 0 0 10px var(--accent-emerald);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(5, 150, 105, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+}
+
+/* Header & Nav */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 16px 0;
+  transition: var(--transition);
+}
+
+.header.scrolled {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  padding: 12px 0;
+}
+
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.brand-logo-img {
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.brand-logo-img:hover {
+  transform: scale(1.05);
+}
+
+.nav-menu {
+  display: flex;
+  gap: 32px;
+  list-style: none;
+}
+
+.nav-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: var(--transition);
+}
+
+.nav-link:hover {
+  color: var(--primary);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 26px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: var(--transition);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #0057b7 0%, #0284c7 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 87, 183, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 87, 183, 0.45);
+}
+
+.btn-glow-purple {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3);
+}
+
+.btn-glow-purple:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.45);
+}
+
+.btn-glass {
+  background: #ffffff;
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-glass:hover {
+  background: #f8fafc;
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.btn-lg {
+  padding: 16px 36px;
+  font-size: 1.1rem;
+  border-radius: var(--radius-lg);
+}
+
+/* Hero Section */
+.hero-section {
+  padding: 160px 0 90px;
+  position: relative;
+  text-align: center;
+}
+
+.hero-badge {
+  margin-bottom: 24px;
+}
+
+.hero-title {
+  font-size: 4.2rem;
+  line-height: 1.12;
+  margin-bottom: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  max-width: 760px;
+  margin: 0 auto 40px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.hero-cta-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 60px;
+}
+
+/* Hero Stats Bar */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  max-width: 1040px;
+  margin: 0 auto;
+  box-shadow: var(--shadow-md);
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2.3rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.stat-value.highlight-cyan { color: var(--primary); }
+.stat-value.highlight-green { color: var(--accent-emerald); }
+.stat-value.highlight-purple { color: #4f46e5; }
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Section Basics */
+.section {
+  padding: 90px 0;
+  position: relative;
+}
+
+.section-header {
+  text-align: center;
+  max-width: 740px;
+  margin: 0 auto 50px;
+}
+
+.section-title {
+  font-size: 2.8rem;
+  margin-top: 14px;
+  margin-bottom: 16px;
+}
+
+.section-desc {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+}
+
+/* Interactive Simulator Section */
+.simulator-container {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 40px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  box-shadow: var(--shadow-lg);
+}
+
+.sim-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sim-tab-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.sim-tab-btn:hover {
+  background: #f1f5f9;
+  border-color: var(--primary);
+  transform: translateX(6px);
+}
+
+.sim-tab-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  box-shadow: 0 4px 20px rgba(0, 87, 183, 0.12);
+}
+
+.sim-tab-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.sim-tab-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  margin-bottom: 4px;
+  color: var(--text-main);
+}
+
+.sim-tab-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Telegram Device Frame (Light Theme) */
+.tg-device {
+  background: #f0f4f8;
+  border: 2px solid #cbd5e1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  height: 520px;
+}
+
+.tg-header {
+  background: #ffffff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tg-avatar-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 2px;
+}
+
+.tg-info h4 {
+  font-size: 0.95rem;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.tg-info span {
+  font-size: 0.75rem;
+  color: var(--accent-emerald);
+  font-weight: 600;
+}
+
+.tg-chat-body {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  background: #eef2f6;
+}
+
+.tg-msg {
+  max-width: 88%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  animation: fadeInMsg 0.4s ease-out;
+}
+
+@keyframes fadeInMsg {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tg-msg-bot {
+  background: #ffffff;
+  color: #0f172a;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.tg-msg-user {
+  background: #0057b7;
+  color: #ffffff;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+.tg-card-box {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  font-size: 0.85rem;
+  color: #1e293b;
+}
+
+.tg-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tg-inline-btn {
+  flex: 1;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0057b7;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Core Features Grid */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.feature-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  transition: var(--transition);
+  position: relative;
+  box-shadow: var(--shadow-sm);
+}
+
+.feature-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-hover);
+}
+
+.feature-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+}
+
+.icon-cyan { background: #e0f2fe; color: var(--primary); }
+.icon-purple { background: #ede9fe; color: #6d28d9; }
+.icon-green { background: #d1fae5; color: #059669; }
+.icon-amber { background: #fef3c7; color: #d97706; }
+
+.feature-title {
+  font-size: 1.35rem;
+  margin-bottom: 12px;
+}
+
+.feature-desc {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Marketplace Section (Light Theme) */
+.mkt-filters {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.mkt-filter-btn {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.mkt-filter-btn:hover, .mkt-filter-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 4px 15px rgba(0, 87, 183, 0.3);
+  transform: translateY(-2px);
+}
+
+.mkt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 50px;
+}
+
+.mkt-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.mkt-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-hover);
+}
+
+.mkt-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.mkt-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: #f1f5f9;
+}
+
+.mkt-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+.mkt-service-title {
+  font-size: 1.25rem;
+  margin-bottom: 8px;
+}
+
+.mkt-service-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.mkt-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.mkt-price {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  color: var(--accent-emerald);
+}
+
+.mkt-master-badge {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.mkt-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: 36px;
+  box-shadow: var(--shadow-md);
+}
+
+.mkt-benefit-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.mkt-benefit-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.mkt-benefit-title {
+  font-size: 1.2rem;
+  margin-bottom: 6px;
+  font-family: var(--font-heading);
+}
+
+.mkt-benefit-desc {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+/* Calculator Section (Light Theme) */
+.calc-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: 48px;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 48px;
+  box-shadow: var(--shadow-lg);
+}
+
+.calc-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.calc-group label {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin-bottom: 12px;
+}
+
+.calc-val-badge {
+  color: var(--primary);
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.calc-slider {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  outline: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.calc-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 2px 10px rgba(0, 87, 183, 0.4);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.calc-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.calc-results {
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.calc-res-item {
+  margin-bottom: 20px;
+}
+
+.calc-res-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.calc-res-num {
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+}
+
+/* Pricing Section (Light Theme) */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.price-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: var(--transition);
+  position: relative;
+  box-shadow: var(--shadow-sm);
+}
+
+.price-card.featured {
+  background: #ffffff;
+  border: 2px solid var(--primary);
+  box-shadow: var(--shadow-hover);
+  transform: scale(1.04);
+}
+
+.price-badge-pop {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, #0057b7, #0284c7);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 5px 18px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.price-header h3 {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.price-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.price-amount {
+  font-size: 3.2rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.price-amount span {
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.price-features {
+  list-style: none;
+  margin: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.price-features li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.price-features li span {
+  color: var(--accent-emerald);
+  font-weight: bold;
+}
+
+/* FAQ Accordion (Light Theme) */
+.faq-grid {
+  max-width: 840px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.faq-item {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.faq-question {
+  padding: 24px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.1rem;
+  font-family: var(--font-heading);
+  user-select: none;
+}
+
+.faq-question:hover {
+  color: var(--primary);
+}
+
+.faq-toggle-icon {
+  font-size: 1.4rem;
+  transition: var(--transition);
+  color: var(--primary);
+}
+
+.faq-answer {
+  padding: 0 28px 24px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  display: none;
+  line-height: 1.7;
+}
+
+.faq-item.open .faq-answer {
+  display: block;
+}
+
+.faq-item.open .faq-toggle-icon {
+  transform: rotate(45deg);
+}
+
+/* CTA Final Banner (Light Theme) */
+.cta-banner {
+  background: linear-gradient(135deg, #0057b7 0%, #0284c7 100%);
+  border-radius: var(--radius-xl);
+  padding: 68px 48px;
+  text-align: center;
+  color: #ffffff;
+  box-shadow: 0 20px 50px rgba(0, 87, 183, 0.25);
+}
+
+.cta-banner h2, .cta-banner p {
+  color: #ffffff;
+}
+
+.cta-banner .gradient-text {
+  background: linear-gradient(135deg, #ffffff 20%, #e0f2fe 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cta-title {
+  font-size: 3.2rem;
+  margin-bottom: 20px;
+}
+
+.cta-desc {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 650px;
+  margin: 0 auto 36px;
+}
+
+.cta-banner .btn-primary {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.cta-banner .btn-primary:hover {
+  background: #f8fafc;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+/* Footer (Light Theme) */
+.footer {
+  border-top: 1px solid var(--border-light);
+  padding: 60px 0 30px;
+  background: #ffffff;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.footer-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.footer-bottom {
+  text-align: center;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-light);
+}
+
+/* Mobile Responsive */
+@media (max-width: 992px) {
+  .hero-title { font-size: 3rem; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .simulator-container { grid-template-columns: 1fr; }
+  .features-grid { grid-template-columns: 1fr; }
+  .mkt-grid { grid-template-columns: 1fr; }
+  .mkt-benefits-grid { grid-template-columns: 1fr; }
+  .calc-card { grid-template-columns: 1fr; padding: 32px; }
+  .pricing-grid { grid-template-columns: 1fr; }
+  .price-card.featured { transform: none; }
+  .nav-menu { display: none; }
+}
+
+@media (max-width: 600px) {
+  .hero-title { font-size: 2.2rem; }
+  .hero-cta-group { flex-direction: column; width: 100%; }
+  .btn { width: 100%; }
+  .stats-grid { grid-template-columns: 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   OSBB.ONLINE INSPIRED ADDITIONS (100 UAH OFFER, REVIEWS, LEAD FORM)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 100 UAH Super Promo Hero Badge */
+.promo-100-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 2px solid #ef4444;
+  color: #b91c1c;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+  margin-bottom: 24px;
+  animation: pulse-border 2.5s infinite;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* 2-Column Advantage Grids (Зручно для ОСББ / Зручно для мешканців) */
+.benefits-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 992px) {
+  .benefits-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 650px) {
+  .benefits-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.benefit-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.benefit-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-hover);
+}
+
+.benefit-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.benefit-card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.benefit-card-desc {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Special 100 UAH Pricing Spotlight */
+.pricing-100-spotlight {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 2px solid #ef4444;
+  border-radius: var(--radius-xl);
+  padding: 48px;
+  box-shadow: 0 20px 50px rgba(239, 68, 68, 0.12);
+  margin-bottom: 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pricing-100-badge {
+  position: absolute;
+  top: 20px;
+  right: -50px;
+  background: #ef4444;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 8px 60px;
+  transform: rotate(45deg);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.pricing-100-content {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .pricing-100-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.price-big-100 {
+  font-size: 5rem;
+  font-weight: 900;
+  font-family: var(--font-heading);
+  color: #ef4444;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.price-big-100 span {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Checklist of Inclusions */
+.inclusions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 24px;
+}
+
+@media (max-width: 600px) {
+  .inclusions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inclusion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+.inclusion-item span {
+  color: var(--accent-emerald);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+/* Reviews Grid (Відгуки) */
+.reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 28px;
+}
+
+@media (max-width: 850px) {
+  .reviews-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: var(--transition);
+}
+
+.review-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-4px);
+}
+
+.review-quote {
+  font-size: 0.98rem;
+  color: var(--text-main);
+  line-height: 1.7;
+  font-style: italic;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.review-quote::before {
+  content: "“";
+  font-size: 3.5rem;
+  color: #cbd5e1;
+  position: absolute;
+  top: -25px;
+  left: -15px;
+  font-family: serif;
+  line-height: 1;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+.review-author {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
+}
+
+.review-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.review-author-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--text-main);
+}
+
+.review-author-city {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* Registration Lead Capture Form */
+.registration-section {
+  background: linear-gradient(135deg, #0057b7 0%, #003e82 100%);
+  border-radius: var(--radius-xl);
+  padding: 64px 48px;
+  color: #ffffff;
+  box-shadow: 0 25px 60px rgba(0, 87, 183, 0.3);
+}
+
+.reg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .reg-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reg-form-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  color: var(--text-main);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  transition: var(--transition);
+  background: #f8fafc;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 87, 183, 0.15);
+}
+
+.btn-submit-red {
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 16px 24px;
+  border-radius: var(--radius-sm);
+  width: 100%;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-submit-red:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.45);
+}
+
+/* Property Types Grid (Inspired by osbb.osbb-online.com.ua) */
+.property-types-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-top: 36px;
+}
+
+@media (max-width: 1100px) {
+  .property-types-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .property-types-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.prop-type-item {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 24px 16px;
+  text-align: center;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.prop-type-item:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+}
+
+.prop-type-icon {
+  font-size: 2.2rem;
+  margin-bottom: 12px;
+}
+
+.prop-type-title {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.prop-type-desc {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+
+</style>
+</head>
+<body>
+
+  <!-- Ambient Glow Backgrounds -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Header Navigation -->
+  <header class="header">
+    <div class="container nav-container">
+      <a href="#" class="logo-wrap">
+        <img src="./app/webapp/static/images/logo.png" alt="DimApp Моє ОСББ Logo" class="brand-logo-img">
+      </a>
+
+      <ul class="nav-menu">
+        <li><a href="#osbb" class="nav-link">Для ОСББ</a></li>
+        <li><a href="#residents" class="nav-link">Для Мешканців</a></li>
+        <li><a href="#simulator" class="nav-link">Як Працює</a></li>
+        <li><a href="#marketplace" class="nav-link">Маркетплейс</a></li>
+        <li><a href="#pricing" class="nav-link">Ціна (100 грн)</a></li>
+        <li><a href="#reviews" class="nav-link">Відгуки</a></li>
+        <li><a href="#contacts" class="nav-link">Контакти</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <a href="https://t.me/me_DimApp_bot" target="_blank" class="btn btn-glass">
+          <span>🤖 Демо-Бот</span>
+        </a>
+        <a href="#register" class="btn btn-primary">
+          <span>⚡️ Підключити за 100 грн</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="container">
+      <!-- 100 UAH Special Offer Badge -->
+      <div class="promo-100-badge">
+        <span>🔥 Спеціальна Пропозиція: Підключення будинку всього за 100 грн!</span>
+      </div>
+
+      <div class="badge badge-cyan hero-badge" style="display: flex; margin: 0 auto 20px auto; width: fit-content;">
+        <span class="badge-pulse"></span>
+        <span>Керуємо будинком, дружимо з мешканцями</span>
+      </div>
+
+      <h1 class="hero-title">
+        Вести облік в ОСББ легко. <br>
+        <span class="gradient-text">Сучасний онлайн-сервіс нового покоління</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Тут є все необхідне від бухгалтерії до роботи з мешканцями для об’єднань співвласників, управляючих компаній та незалежних бухгалтерів. Економить час голови, автоматизує квитанції та лічильники, а зручний Telegram Mini App збільшує прозорість і довіру мешканців.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="#register" class="btn btn-primary btn-lg">
+          <span>🚀 Зареєструвати ОСББ — 100 грн</span>
+        </a>
+        <a href="https://t.me/me_DimApp_bot" target="_blank" class="btn btn-glass btn-lg">
+          <span>🎮 Спробувати Демо-бота</span>
+        </a>
+      </div>
+
+      <p style="margin-top: 14px; color: var(--text-muted); font-size: 0.95rem;">
+        🎁 <b>До 2 місяців безкоштовного тестування!</b> Допоможемо налаштувати та ввести дані вашого будинку.
+      </p>
+
+      <!-- Stats Bar (Similar to osbb.online) -->
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value highlight-cyan">350+</div>
+          <div class="stat-label">ОСББ користуються системою</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value highlight-green">32 000+</div>
+          <div class="stat-label">квартир мають персональні кабінети</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value highlight-purple">1 800 000+</div>
+          <div class="stat-label">м² площа будинків під управлінням</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" style="color: #ef4444;">100 грн</div>
+          <div class="stat-label">вартість підключення під ключ</div>
+        </div>
+      </div>
+
+      <!-- Property Types Grid (Inspired by osbb-online.com.ua) -->
+      <div style="margin-top: 50px; text-align: center;">
+        <span style="font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim);">
+          Єдине рішення для будь-яких житлових та комерційних фондів:
+        </span>
+        <div class="property-types-grid">
+          <div class="prop-type-item">
+            <div class="prop-type-icon">🏢</div>
+            <div class="prop-type-title">ОСББ</div>
+            <div class="prop-type-desc">Багатоквартирні будинки</div>
+          </div>
+          <div class="prop-type-item">
+            <div class="prop-type-icon">🏘</div>
+            <div class="prop-type-title">ЖБК</div>
+            <div class="prop-type-desc">Кооперативні будинки</div>
+          </div>
+          <div class="prop-type-item">
+            <div class="prop-type-icon">🏙</div>
+            <div class="prop-type-title">Керуючі Компанії</div>
+            <div class="prop-type-desc">Мережі житлових комплексів</div>
+          </div>
+          <div class="prop-type-item">
+            <div class="prop-type-icon">🏡</div>
+            <div class="prop-type-title">Котеджні Містечка</div>
+            <div class="prop-type-desc">Дачні та котеджні селища</div>
+          </div>
+          <div class="prop-type-item">
+            <div class="prop-type-icon">🚗</div>
+            <div class="prop-type-title">Гаражі та Паркінги</div>
+            <div class="prop-type-desc">Підземні та наземні стоянки</div>
+          </div>
+          <div class="prop-type-item">
+            <div class="prop-type-icon">🏬</div>
+            <div class="prop-type-title">Комерція та Оренда</div>
+            <div class="prop-type-desc">Офіси, комори, оренда майна</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 1: Convenient for OSBB & Accountant (Зручно для ОСББ) -->
+  <section id="osbb" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Для Правління та Бухгалтерії</div>
+        <h2 class="section-title">Зручно для <span class="gradient-text">ОСББ та Керуючих</span></h2>
+        <p class="section-desc">DimApp бере на себе всю вашу рутинну роботу по веденню обліку в будинку. Наші клієнти приділяють обліку лише кілька годин на місяць замість тижнів.</p>
+      </div>
+
+      <div class="benefits-cards-grid">
+        <!-- 1 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">⏱</div>
+          <h3 class="benefit-card-title">Економить Ваш час</h3>
+          <p class="benefit-card-desc">Повна автоматизація розрахунків, нарахування внесків, формування рахунків та автоматична відправка нагадувань боржникам. Забудьте про ручне заповнення паперів.</p>
+        </div>
+
+        <!-- 2 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">🛠</div>
+          <h3 class="benefit-card-title">Всі інструменти для роботи</h3>
+          <p class="benefit-card-desc">Тут є все необхідне для управління будинком — від миттєвого друку квитанцій (PDF/Excel) до бухгалтерських операцій, реєстру жителів та роботи зі зверненнями.</p>
+        </div>
+
+        <!-- 3 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">📱</div>
+          <h3 class="benefit-card-title">Зручно користуватись</h3>
+          <p class="benefit-card-desc">Працює на комп'ютері, телефоні чи планшеті через веб-кабінет та Telegram. Це сучасний хмарний сервіс — немає жодної необхідності встановлювати програми на ПК.</p>
+        </div>
+
+        <!-- 4 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon" style="background: #fef2f2; color: #ef4444;">🚀</div>
+          <h3 class="benefit-card-title">Легкий старт за 100 грн</h3>
+          <p class="benefit-card-desc">Допоможемо почати працювати без стресу: наші технічні фахівці самі введуть інформацію про будинок, квартири, співвласників, початкові сальдо та налаштують розрахунки.</p>
+        </div>
+
+        <!-- 5 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">💼</div>
+          <h3 class="benefit-card-title">Для бухгалтерів та інтеграція з BAS / 1С</h3>
+          <p class="benefit-card-desc">Автоматичний імпорт виписок з будь-яких українських банків (ПриватБанк, Моно, Ощад), синхронізація з BAS Бухгалтерія та 1С, обробка dbf файлів пільг і субсидій, нарахування зарплати та податкова звітність.</p>
+        </div>
+
+        <!-- 6 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">📢</div>
+          <h3 class="benefit-card-title">Робота з мешканцями та опитування</h3>
+          <p class="benefit-card-desc">Надсилання повідомлень та рахунків у Telegram, Viber, SMS або на e-mail. Інформування співвласників через персональні кабінети та легітимні онлайн-голосування з кворумом за м².</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Section 2: Convenient for Co-Owners & Residents (Зручно для співвласників) -->
+  <section id="residents" class="section" style="background: var(--bg-section-alt);">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Для Мешканців та Власників Квартир</div>
+        <h2 class="section-title">Зручно для <span class="gradient-text">Співвласників</span></h2>
+        <p class="section-desc">Все, що жителі хотіли знати про своє ОСББ та розрахунки за комунальні послуги — тепер в одному зручному місці у рідному Telegram без встановлення важких додатків.</p>
+      </div>
+
+      <div class="benefits-cards-grid">
+        <!-- 1 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">📩</div>
+          <h3 class="benefit-card-title">Повідомлення про оплату</h3>
+          <p class="benefit-card-desc">Окрім друкованих квитанцій, мешканці отримують детальні електронні рахунки в Telegram, Viber чи на пошту з готовим QR-кодом для миттєвої оплати.</p>
+        </div>
+
+        <!-- 2 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">📜</div>
+          <h3 class="benefit-card-title">Історія розрахунків 24/7</h3>
+          <p class="benefit-card-desc">Щоб перевірити всі нарахування та історію платежів, більше не потрібно ходити до бухгалтера чи чекати прийомних годин. Інформація доступна цілодобово в 1 клік.</p>
+        </div>
+
+        <!-- 3 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">💳</div>
+          <h3 class="benefit-card-title">Оплата послуг в 1 клік</h3>
+          <p class="benefit-card-desc">Не відходячи від телефону або комп'ютера можна миттєво сплатити за утримання будинку та комуналку через Apple Pay, Google Pay, Monobank або Приват24 без черг.</p>
+        </div>
+
+        <!-- 4 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">🔍</div>
+          <h3 class="benefit-card-title">Контроль та довіра до ОСББ</h3>
+          <p class="benefit-card-desc">У будь-який момент мешканцям доступна інформація про доходи та видатки будинку, залишки коштів на рахунках. Повна прозорість знімає будь-які конфлікти та недовіру.</p>
+        </div>
+
+        <!-- 5 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">💧</div>
+          <h3 class="benefit-card-title">Покази лічильників</h3>
+          <p class="benefit-card-desc">Мешканці бачать попередні показники лічильників (води, тепла, світла), отримують нагадування в боті та передають поточні дані за лічені секунди навіть із фото лічильника.</p>
+        </div>
+
+        <!-- 6 -->
+        <div class="benefit-card">
+          <div class="benefit-card-icon">🤖</div>
+          <h3 class="benefit-card-title">Зв'язок з ОСББ та AI-Консьєрж</h3>
+          <p class="benefit-card-desc">Ще ніколи не було так легко звернутися в ОСББ: подати заявку на ремонт текстом або голосовим повідомленням, дізнатися правила проживання та викликати перевіреного майстра.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Simulator Section -->
+  <section id="simulator" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Спробуйте Прямо Зараз</div>
+        <h2 class="section-title">Як Працює <span class="gradient-text">Система в Telegram</span></h2>
+        <p class="section-desc">Оберіть сценарій нижче та подивіться, як бот та штучний інтелект вирішують щоденні завдання будинку та мешканців за лічені секунди.</p>
+      </div>
+
+      <div class="simulator-container">
+        <!-- Tab Controls -->
+        <div class="sim-nav">
+          <div class="sim-tab-btn active" data-scene="concierge">
+            <div class="sim-tab-icon">🤖</div>
+            <div>
+              <div class="sim-tab-title">AI-Консьєрж та База Знань</div>
+              <div class="sim-tab-desc">Миттєві відповіді на питання про тишу, сміття, правила ОСББ та контакти служб.</div>
+            </div>
+          </div>
+
+          <div class="sim-tab-btn" data-scene="ticket">
+            <div class="sim-tab-icon">🎙</div>
+            <div>
+              <div class="sim-tab-title">Голосові AI-Заявки на Ремонт</div>
+              <div class="sim-tab-desc">Мешканець надсилає аудіо — AI розпізнає суть, визначає терміновість та передає майстру.</div>
+            </div>
+          </div>
+
+          <div class="sim-tab-btn" data-scene="payment">
+            <div class="sim-tab-icon">💳</div>
+            <div>
+              <div class="sim-tab-title">1-Click Оплата Комуналки</div>
+              <div class="sim-tab-desc">Єдиний рахунок за утримання будинку та міські послуги. Оплата через Apple/Google Pay.</div>
+            </div>
+          </div>
+
+          <div class="sim-tab-btn" data-scene="marketplace">
+            <div class="sim-tab-icon">🛠</div>
+            <div>
+              <div class="sim-tab-title">Маркетплейс Перевірених Майстрів</div>
+              <div class="sim-tab-desc">Електрики, сантехніки та клінери поруч. Виклик майстра з підтвердженням за 2 хвилини.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulated Phone Frame -->
+        <div class="tg-device">
+          <div class="tg-header">
+            <img src="./app/webapp/static/images/logo.png" alt="DimApp Bot" class="tg-avatar-img">
+            <div class="tg-info">
+              <h4 id="simTitle">🤖 AI-Консьєрж DimApp</h4>
+              <span>● онлайн (бот)</span>
+            </div>
+          </div>
+          <div class="tg-chat-body" id="simChat">
+            <!-- Messages inserted dynamically via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Marketplace Section -->
+  <section id="marketplace" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Локальна Екосистема Послуг</div>
+        <h2 class="section-title">Маркетплейс Перевірених <br><span class="gradient-text">Майстрів Будинку</span></h2>
+        <p class="section-desc">Більше не потрібно шукати контакти в сумнівних чатах. Всі надійні спеціалісти — від сантехніка до клінінгу — доступні в 1 клік прямо в боті.</p>
+      </div>
+
+      <!-- Category Filter Chips -->
+      <div class="mkt-filters">
+        <button class="mkt-filter-btn active" data-cat="all">✨ Усі послуги</button>
+        <button class="mkt-filter-btn" data-cat="plumbing">🚰 Сантехніка</button>
+        <button class="mkt-filter-btn" data-cat="electricity">💡 Електрика</button>
+        <button class="mkt-filter-btn" data-cat="cleaning">🧹 Клінінг</button>
+        <button class="mkt-filter-btn" data-cat="climate">❄️ Кондиціонери</button>
+        <button class="mkt-filter-btn" data-cat="doors">🔑 Двері та замки</button>
+      </div>
+
+      <!-- Marketplace Cards Grid -->
+      <div class="mkt-grid">
+        <!-- Card 1 -->
+        <div class="mkt-card" data-cat="plumbing">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🚰</div>
+              <div class="mkt-rating">⭐ 4.95 (128)</div>
+            </div>
+            <h3 class="mkt-service-title">Заміна змішувача / крана</h3>
+            <p class="mkt-service-desc">Демонтаж старого та професійне встановлення нового змішувача з герметизацією з'єднань.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 350 грн</div>
+            <div class="mkt-master-badge">👷‍♂️ Сергій М. (~45 хв)</div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="mkt-card" data-cat="electricity">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">💡</div>
+              <div class="mkt-rating">⭐ 4.98 (94)</div>
+            </div>
+            <h3 class="mkt-service-title">Встановлення розеток та вимикачів</h3>
+            <p class="mkt-service-desc">Заміна фурнітури, монтаж підрозетників, перевірка фази та навантаження електромережі.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 150 грн/точка</div>
+            <div class="mkt-master-badge">👷‍♂️ Андрій К. (~30 хв)</div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="mkt-card" data-cat="climate">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">❄️</div>
+              <div class="mkt-rating">⭐ 4.96 (82)</div>
+            </div>
+            <h3 class="mkt-service-title">Чистка кондиціонера</h3>
+            <p class="mkt-service-desc">Глибока антибактеріальна обробка парогенератором, чистка фільтрів та перевірка тиску фреону.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 650 грн</div>
+            <div class="mkt-master-badge">🛠 Клімат-Експерт (~1 год)</div>
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="mkt-card" data-cat="cleaning">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🧹</div>
+              <div class="mkt-rating">⭐ 4.92 (65)</div>
+            </div>
+            <h3 class="mkt-service-title">Генеральне прибирання квартири</h3>
+            <p class="mkt-service-desc">Комплексний клінінг кімнат, санвузлів, миття поверхонь професійною безпечною хімією.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 1 200 грн</div>
+            <div class="mkt-master-badge">✨ Чистий Дім (~3 год)</div>
+          </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="mkt-card" data-cat="doors">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🔑</div>
+              <div class="mkt-rating">⭐ 5.00 (43)</div>
+            </div>
+            <h3 class="mkt-service-title">Врізка та заміна дверного замка</h3>
+            <p class="mkt-service-desc">Оперативна заміна серцевини (циліндра), регулювання дверних петель та замкових механізмів.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 450 грн</div>
+            <div class="mkt-master-badge">🔐 Лок-Майстер (~40 хв)</div>
+          </div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="mkt-card" data-cat="plumbing">
+          <div>
+            <div class="mkt-card-header">
+              <div class="mkt-icon">🚰</div>
+              <div class="mkt-rating">⭐ 4.97 (110)</div>
+            </div>
+            <h3 class="mkt-service-title">Монтаж та підключення бойлера</h3>
+            <p class="mkt-service-desc">Навішування, підведення труб водопостачання, монтаж зворотного клапана та запуск.</p>
+          </div>
+          <div class="mkt-meta">
+            <div class="mkt-price">від 800 грн</div>
+            <div class="mkt-master-badge">👷‍♂️ Сергій М. (~2 год)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROI / Savings Calculator Section -->
+  <section id="calculator" class="section" style="background: var(--bg-section-alt);">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Розрахунок Економічного Ефекту</div>
+        <h2 class="section-title">Скільки Заощадить <span class="gradient-text">Ваше ОСББ?</span></h2>
+        <p class="section-desc">Вкажіть розмір вашого будинку, щоб побачити реальну економію часу голови правління та зростання зборів платежів.</p>
+      </div>
+
+      <div class="calc-card">
+        <div class="calc-inputs">
+          <div class="calc-group">
+            <label>
+              <span>Кількість квартир у будинку:</span>
+              <span id="aptVal" class="calc-val-badge">120 кв.</span>
+            </label>
+            <input type="range" id="aptSlider" class="calc-slider" min="20" max="400" step="5" value="120">
+          </div>
+
+          <div class="calc-group">
+            <label>
+              <span>Тариф внеску на утримання:</span>
+              <span id="tariffVal" class="calc-val-badge">8.50 грн/м²</span>
+            </label>
+            <input type="range" id="tariffSlider" class="calc-slider" min="4.0" max="25.0" step="0.5" value="8.5">
+          </div>
+
+          <p style="color: var(--text-dim); font-size: 0.85rem;">
+            * Розрахунок базується на статистиці підключених ОСББ: скорочення трудовитрат диспетчера на 70%, скорочення простроченої заборгованості на 12-18% на рік.
+          </p>
+        </div>
+
+        <div class="calc-results">
+          <div class="calc-res-item">
+            <div class="calc-res-label">⏳ Економія часу правління на місяць:</div>
+            <div class="calc-res-num" id="resHours" style="color: var(--primary);">~50 год/міс</div>
+          </div>
+
+          <div class="calc-res-item">
+            <div class="calc-res-label">💰 Прогнозоване повернення боргів:</div>
+            <div class="calc-res-num" id="resDebt" style="color: var(--accent-emerald);">~88 000 грн/рік</div>
+          </div>
+
+          <div class="calc-res-item">
+            <div class="calc-res-label">🚀 Окупність платформи DimApp:</div>
+            <div class="calc-res-num" id="resPayback" style="color: #b76eff;">1-й місяць</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Pricing & 100 UAH Special Offer (Вартість користування) -->
+  <section id="pricing" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Вартість Користування</div>
+        <h2 class="section-title">Демократична Ціна <span class="gradient-text">Без Прихованих Платежів</span></h2>
+        <p class="section-desc">Вартість не залежить від кількості квартир чи площі будинку. Підключення доступне кожному ОСББ в Україні.</p>
+      </div>
+
+      <!-- Spotlight: 100 UAH Connection Offer -->
+      <div class="pricing-100-spotlight">
+        <div class="pricing-100-badge">ХІТ ПРОПОЗИЦІЯ</div>
+        <div class="pricing-100-content">
+          <div>
+            <div class="badge badge-cyan" style="margin-bottom: 12px;">Швидкий Старт Під Ключ</div>
+            <h3 style="font-size: 2.2rem; font-family: var(--font-heading); margin-bottom: 12px; color: var(--text-main);">
+              Підключення та налаштування будинку
+            </h3>
+            <p style="font-size: 1.1rem; color: var(--text-muted); line-height: 1.6;">
+              Наші технічні інженери зроблять все за вас: завантажать реєстр квартир, імпортують мешканців, налаштують особові рахунки та підготують персональні QR-коди для під'їздів.
+            </p>
+            
+            <div class="price-big-100">
+              100 <span>грн / одноразово</span>
+            </div>
+
+            <p style="color: var(--accent-emerald); font-weight: 700; font-size: 1.1rem; margin-bottom: 24px;">
+              🎁 + ДО ДВОХ МІСЯЦІВ БЕЗКОШТОВНОГО ТЕСТУВАННЯ З ПОВНИМ ДОСТУПОМ!
+            </p>
+
+            <a href="#register" class="btn btn-primary btn-lg" style="background: #ef4444; border-color: #ef4444;">
+              <span>🚀 Зареєструвати ОСББ за 100 грн</span>
+            </a>
+          </div>
+
+          <!-- What's included checklist -->
+          <div>
+            <h4 style="font-size: 1.2rem; font-family: var(--font-heading); margin-bottom: 16px; color: var(--text-main);">
+              Ось що входить у вартість:
+            </h4>
+            <div class="inclusions-grid" style="grid-template-columns: 1fr;">
+              <div class="inclusion-item"><span>✓</span> <b>Повне внесення даних:</b> будинок, під'їзди, квартири, мешканці</div>
+              <div class="inclusion-item"><span>✓</span> <b>Імпорт з Excel / 1C:</b> початкові сальдо та тарифи будинку</div>
+              <div class="inclusion-item"><span>✓</span> <b>Генерація QR-кодів:</b> для швидкого входу мешканців у Telegram</div>
+              <div class="inclusion-item"><span>✓</span> <b>Персональне навчання:</b> для голови правління та бухгалтера</div>
+              <div class="inclusion-item"><span>✓</span> <b>Безкоштовна підтримка:</b> супровід та допомога без вихідних</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly vs Yearly Plans after trial -->
+      <h3 style="text-align: center; font-size: 1.8rem; font-family: var(--font-heading); margin: 40px 0 24px;">
+        Вартість після безкоштовного періоду:
+      </h3>
+
+      <div class="pricing-grid" style="grid-template-columns: repeat(2, 1fr); max-width: 820px; margin: 0 auto 50px auto;">
+        <!-- Monthly -->
+        <div class="price-card">
+          <div class="price-header">
+            <h3>За місяць</h3>
+            <div class="price-desc">Оплата помісячно для комфортного бюджету</div>
+            <div class="price-amount">200 <span>грн / місяць</span></div>
+          </div>
+
+          <ul class="price-features">
+            <li><span>✓</span> За весь будинок (не за квартиру)</li>
+            <li><span>✓</span> Необмежена кількість квартир та мешканців</li>
+            <li><span>✓</span> Повний доступ до всіх функцій</li>
+            <li><span>✓</span> Telegram Mini App для мешканців</li>
+            <li><span>✓</span> Безкоштовна техпідтримка</li>
+          </ul>
+
+          <a href="#register" class="btn btn-glass">Обрати Помісячно</a>
+        </div>
+
+        <!-- Yearly (Featured) -->
+        <div class="price-card featured">
+          <div class="price-badge-pop">2 Місяці у подарунок</div>
+          <div class="price-header">
+            <h3>За рік</h3>
+            <div class="price-desc">Одним платежем на рік з максимальною вигодою</div>
+            <div class="price-amount" style="color: var(--primary);">2 000 <span>грн / рік</span></div>
+          </div>
+
+          <ul class="price-features">
+            <li><span>✓</span> <b>2 місяці безкоштовно</b> (економія 400 грн)</li>
+            <li><span>✓</span> Необмежена кількість квартир та будинків</li>
+            <li><span>✓</span> Пріоритетне оновлення та консультації</li>
+            <li><span>✓</span> Інтеграція з банками та 1С</li>
+            <li><span>✓</span> 🤖 AI-Консьєрж 24/7 у комплекті</li>
+          </ul>
+
+          <a href="#register" class="btn btn-primary">Підключити на рік</a>
+        </div>
+      </div>
+
+      <!-- Complete All-Inclusive Features (as on osbb.online) -->
+      <div style="background: #ffffff; border: 1px solid var(--border-light); border-radius: var(--radius-xl); padding: 48px; box-shadow: var(--shadow-md);">
+        <h3 style="font-size: 1.7rem; font-family: var(--font-heading); text-align: center; margin-bottom: 28px;">
+          Ось що ви отримуєте <span class="gradient-text">без додаткових оплат:</span>
+        </h3>
+
+        <div class="inclusions-grid">
+          <div class="inclusion-item"><span>✓</span> Технічна підтримка безкоштовна</div>
+          <div class="inclusion-item"><span>✓</span> Допомога у налаштуванні безкоштовна</div>
+          <div class="inclusion-item"><span>✓</span> Кількість квартир необмежена</div>
+          <div class="inclusion-item"><span>✓</span> Кількість мешканців необмежена</div>
+          <div class="inclusion-item"><span>✓</span> Доступ з комп’ютера, планшета, смартфона</div>
+          <div class="inclusion-item"><span>✓</span> Розсилка на електронну пошту та в Telegram безкоштовна</div>
+          <div class="inclusion-item"><span>✓</span> Друк документів та квитанцій у PDF та XLS</div>
+          <div class="inclusion-item"><span>✓</span> Нарахування внесків на утримання будинків</div>
+          <div class="inclusion-item"><span>✓</span> Облік комунальних послуг (по лічильниках і за нормами)</div>
+          <div class="inclusion-item"><span>✓</span> Робота з dbf файлами пільг та субсидій</div>
+          <div class="inclusion-item"><span>✓</span> Розрахунки з мешканцями та автоматичний облік боргів</div>
+          <div class="inclusion-item"><span>✓</span> Прозорий баланс, доходи та видатки ОСББ</div>
+          <div class="inclusion-item"><span>✓</span> "Паспортний стіл" та реєстр співвласників</div>
+          <div class="inclusion-item"><span>✓</span> QR-код на квитанції для швидкої оплати смартфоном</div>
+          <div class="inclusion-item"><span>✓</span> Робота з виписками банків, інтеграція з 1С / BAS</div>
+          <div class="inclusion-item"><span>✓</span> Легітимні опитування та голосування за площею</div>
+          <div class="inclusion-item"><span>✓</span> Telegram Mini App — особистий кабінет мешканця</div>
+          <div class="inclusion-item"><span>✓</span> 🤖 AI-Консьєрж 24/7 та прийом голосових заявок</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Real Customer Reviews (Відгуки клієнтів, як на osbb.online) -->
+  <section id="reviews" class="section" style="background: var(--bg-section-alt);">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Реальний Досвід</div>
+        <h2 class="section-title">Відгуки Наших <span class="gradient-text">Клієнтів</span></h2>
+        <p class="section-desc">Дізнайтеся, чому голови правління та бухгалтери по всій Україні довіряють управління своїми будинками нашій системі.</p>
+      </div>
+
+      <div class="reviews-grid">
+        <!-- Review 1 -->
+        <div class="review-card">
+          <div class="review-quote">
+            «При виборі системи обліку стояло кілька завдань: швидкий запуск, внесення даних будинку, онлайн користування та простота логіки. Вибрали систему тому, що вона найлегша в управлінні, а підтримка миттєво реагує на будь-які запитання. Станом на зараз можу сказати точно — беріть і не партеся, це найкраще рішення на ринку!»
+          </div>
+          <div class="review-author">
+            <div class="review-avatar">П</div>
+            <div>
+              <div class="review-author-name">ОСББ "Повітряна 92"</div>
+              <div class="review-author-city">м. Львів (120 квартир)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review 2 -->
+        <div class="review-card">
+          <div class="review-quote">
+            «Користуюся програмою вже кілька місяців і дуже задоволена: інтерфейс зрозумілий, розносити банк дуже зручно і швидко. Окреме спасибі технічному спеціалісту, який допоміг у занесенні всіх даних будинку, і мені не довелося вручну все набивати. Плюс приємний бонус — 2 місяці безкоштовного користування!»
+          </div>
+          <div class="review-author">
+            <div class="review-avatar">П</div>
+            <div>
+              <div class="review-author-name">ОСББ "Парус"</div>
+              <div class="review-author-city">м. Дніпро (180 квартир)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review 3 -->
+        <div class="review-card">
+          <div class="review-quote">
+            «Дуже зручний сервіс для адміністрування та інформатизації роботи ОСББ. Кожен співвласник має свій кабінет, де бачить нарахування, оплати та куди витрачаються кошти. Керівництву ОСББ зручно мати всю інформацію онлайн у телефоні. Зникли будь-які питання недовіри сусідів, тепер повний порядок і спокій!»
+          </div>
+          <div class="review-author">
+            <div class="review-avatar">В</div>
+            <div>
+              <div class="review-author-name">ОСББ "Ворзель парк 2"</div>
+              <div class="review-author-city">Київська область (96 квартир)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review 4 -->
+        <div class="review-card">
+          <div class="review-quote">
+            «Основними вимогами були: простота, надійність, наявність технічної підтримки і звичайно демократична ціна. Було протестовано багато програм, але ця відповідає всім критеріям. Легкість введення даних, коректний розрахунок, швидка оплата для мешканців і чудова підтримка.»
+          </div>
+          <div class="review-author">
+            <div class="review-avatar">М</div>
+            <div>
+              <div class="review-author-name">ОСББ «Маршала Жукова 65»</div>
+              <div class="review-author-city">м. Одеса (144 квартири)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: Lead Capture Registration Form (Зареєструвати ОСББ за 100 грн) -->
+  <section id="register" class="section">
+    <div class="container">
+      <div class="registration-section">
+        <div class="reg-grid">
+          <div>
+            <div class="badge badge-cyan" style="background: rgba(255,255,255,0.2); color: #ffffff; border-color: rgba(255,255,255,0.3); margin-bottom: 20px;">
+              🔥 Акція 100 грн діє сьогодні
+            </div>
+            <h2 style="font-size: 2.8rem; font-family: var(--font-heading); margin-bottom: 20px; line-height: 1.2;">
+              Підключіть Свій Будинок Всього за 100 грн
+            </h2>
+            <p style="font-size: 1.15rem; opacity: 0.95; line-height: 1.7; margin-bottom: 28px;">
+              Заповніть коротку форму. Наш спеціаліст зв'яжеться з вами протягом 15 хвилин, допоможе завантажити реєстр мешканців та запустить систему для вашого будинку «під ключ».
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 14px; opacity: 0.9;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.2rem;">🎁</span> До двох місяців повного безкоштовного тестування
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.2rem;">⚡️</span> Безкоштовний імпорт бази квартир та сальдо
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.2rem;">🔒</span> Захищені дані та відповідність законодавству України
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Card -->
+          <div class="reg-form-card">
+            <h3 style="font-size: 1.5rem; font-family: var(--font-heading); margin-bottom: 20px; text-align: center;">
+              Заявка на Підключення ОСББ
+            </h3>
+
+            <form id="leadForm">
+              <div class="form-group">
+                <label for="osbbName">Назва ОСББ або адреса будинку *</label>
+                <input type="text" id="osbbName" class="form-control" placeholder="наприклад: ОСББ «Мрія», вул. Соборна 15" required>
+              </div>
+
+              <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                  <label for="osbbCity">Місто *</label>
+                  <input type="text" id="osbbCity" class="form-control" placeholder="Київ, Львів..." required>
+                </div>
+                <div>
+                  <label for="osbbApts">К-сть квартир *</label>
+                  <input type="number" id="osbbApts" class="form-control" placeholder="наприклад: 120" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="contactName">ПІБ голови або представника *</label>
+                <input type="text" id="contactName" class="form-control" placeholder="Іваненко Іван Іванович" required>
+              </div>
+
+              <div class="form-group">
+                <label for="contactPhone">Контактний телефон *</label>
+                <input type="tel" id="contactPhone" class="form-control" placeholder="+38 (067) 123-45-67" required>
+              </div>
+
+              <button type="submit" class="btn-submit-red" style="margin-top: 10px;">
+                <span>🚀 Зареєструвати ОСББ за 100 грн</span>
+              </button>
+
+              <div id="formSuccess" style="display: none; margin-top: 16px; padding: 14px; background: #ecfdf5; border: 1px solid #10b981; border-radius: var(--radius-sm); color: #065f46; font-size: 0.95rem; text-align: center;">
+                ✅ <b>Дякуємо! Вашу заявку прийнято.</b><br>
+                Спеціаліст DimApp зв'яжеться з вами найближчим часом.
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section id="faq" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Часті Запитання</div>
+        <h2 class="section-title">Відповіді на <span class="gradient-text">Важливі Питання</span></h2>
+      </div>
+
+      <div class="faq-grid">
+        <div class="faq-item open">
+          <div class="faq-question">
+            <span>Що саме входить у вартість підключення за 100 грн?</span>
+            <span class="faq-toggle-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            У 100 грн входить повне налаштування вашого будинку під ключ: внесення адресного реєстру квартир, завантаження мешканців та початкових сальдо (з Excel, 1С або іншої програми), налаштування тарифів та нарахувань, генерація QR-кодів для під'їздів та персональне навчання правління.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Скільки триває безкоштовний пробний період?</span>
+            <span class="faq-toggle-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Після реєстрації ви користуєтеся системою безкоштовно до 2 місяців. У цей період вам доступні абсолютно всі функції без жодних обмежень, щоб ви та мешканці переконалися в зручності.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Чи потрібно мешканцям завантажувати окремі додатки?</span>
+            <span class="faq-toggle-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Ні! У цьому головна перевага нашої системи. Все працює у звичному месенджері Telegram через графічний кабінет (Mini App). Не треба завантажувати важкі програми з App Store / Google Play чи згадувати логіни та паролі.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Чи можна імпортувати дані з нашої 1С або банківських виписок?</span>
+            <span class="faq-toggle-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Так! Система підтримує імпорт банківських виписок будь-яких українських банків (ПриватБанк, Monobank, Ощадбанк, Райффайзен тощо), інтеграцію з 1С / BAS та обробку стандартних dbf-файлів пільг та субсидій соцзахисту.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Чи безпечні платежі та персональні дані співвласників?</span>
+            <span class="faq-toggle-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Абсолютно. Всі платіжні операції здійснюються через захищені шлюзи офіційних банківських еквайєрів за стандартом безпеки PCI DSS. Персональні дані зберігаються відповідно до Закону України «Про захист персональних даних».
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contacts Section (як на osbb.online) -->
+  <section id="contacts" class="section" style="background: var(--bg-section-alt);">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-cyan">Зворотний Зв'язок</div>
+        <h2 class="section-title">Маєте питання? <span class="gradient-text">Звертайтесь!</span></h2>
+        <p class="section-desc">Ми завжди на зв'язку та раді допомогти порадою або надати консультацію щодо автоматизації вашого ОСББ.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 960px; margin: 0 auto;">
+        <div class="benefit-card" style="text-align: center; align-items: center;">
+          <div class="benefit-card-icon" style="margin-bottom: 14px;">📞</div>
+          <h4 style="font-size: 1.15rem; margin-bottom: 6px;">Телефон підтримки</h4>
+          <p style="color: var(--primary); font-weight: 700; font-size: 1.2rem;">+38 (067) 220 33 10</p>
+          <span style="font-size: 0.85rem; color: var(--text-dim);">Пн–Пт: 09:00 – 19:00</span>
+        </div>
+
+        <div class="benefit-card" style="text-align: center; align-items: center;">
+          <div class="benefit-card-icon" style="margin-bottom: 14px;">✉️</div>
+          <h4 style="font-size: 1.15rem; margin-bottom: 6px;">Електронна пошта</h4>
+          <p style="color: var(--primary); font-weight: 700; font-size: 1.1rem;">support@dimapp.online</p>
+          <span style="font-size: 0.85rem; color: var(--text-dim);">Цілодобовий прийом звернень</span>
+        </div>
+
+        <div class="benefit-card" style="text-align: center; align-items: center;">
+          <div class="benefit-card-icon" style="margin-bottom: 14px;">💬</div>
+          <h4 style="font-size: 1.15rem; margin-bottom: 6px;">Telegram Менеджер</h4>
+          <a href="https://t.me/managerAndrii" target="_blank" style="color: var(--primary); font-weight: 700; font-size: 1.1rem; text-decoration: none;">@managerAndrii</a>
+          <span style="font-size: 0.85rem; color: var(--text-dim);">Миттєва відповідь у чаті</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <a href="#" class="logo-wrap">
+          <img src="./app/webapp/static/images/logo.png" alt="DimApp AI Logo" class="brand-logo-img">
+        </a>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: center;">
+          <a href="#osbb" class="nav-link">Для ОСББ</a>
+          <a href="#residents" class="nav-link">Для Мешканців</a>
+          <a href="#pricing" class="nav-link">Тарифи</a>
+          <a href="#reviews" class="nav-link">Відгуки</a>
+          <a href="https://t.me/managerAndrii" target="_blank" class="nav-link" style="color: var(--primary); font-weight: 600;">💬 Менеджер: @managerAndrii</a>
+          <a href="https://t.me/me_DimApp_bot" target="_blank" class="nav-link">🤖 Telegram Бот</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Зроблено в Україні. © 2016–2026 DimApp | Моє ОСББ. Всі права захищено. Створено для комфортного життя та ефективного управління.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>document.addEventListener('DOMContentLoaded', () => {
+  // 1. Header scroll blur effect
+  const header = document.querySelector('.header');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 40) {
+      header.classList.add('scrolled');
+    } else {
+      header.classList.remove('scrolled');
+    }
+  });
+
+  // 2. Interactive Telegram Bot Simulator
+  const simData = {
+    concierge: {
+      title: "🤖 AI-Консьєрж DimApp",
+      messages: [
+        { type: "user", text: "Добрий день! Коли у нас вивозять великогабаритне сміття і чи можна робити ремонт у суботу?" },
+        { 
+          type: "bot", 
+          text: "🤖 <b>AI-Консьєрж:</b><br>Вітаю! Згідно з регламентом нашого будинку:<br>• <b>Вивіз великогабаритного сміття:</b> щовівторка та щоп'ятниці з 09:00.<br>• <b>Режим тиші:</b> шумні ремонтні роботи у вихідні (субота/неділя) суворо заборонені статутом ОСББ.<br><br><i>Чи бажаєте зареєструвати звернення до правління?</i>",
+          buttons: ["📝 Подати заявку", "❓ Задати інше питання"]
+        }
+      ]
+    },
+    ticket: {
+      title: "🔧 AI-Диспетчерська та Голосові Заявки",
+      messages: [
+        { type: "user", text: "🎙 <i>Голосове повідомлення (0:08): «На 3 поверсі у 2 під'їзді блимає лампа і капає з труби»</i>" },
+        { 
+          type: "bot", 
+          text: "🤖 <b>DimApp AI розпізнав заявку:</b><br><div class='tg-card-box'>🚨 <b>Срочність:</b> 🟡 Звичайна<br>📂 <b>Категорія:</b> 💡 Електрика та 🚰 Сантехніка<br>📍 <b>Локація:</b> Під'їзд №2, поверх 3<br>💡 <b>AI порада:</b> Потрібна заміна LED-лампи 12W та огляд стику труби.</div><b>Заявку №104 передано черговому майстру будинку!</b>",
+          buttons: ["👷‍♂️ Призначити майстра", "✅ Взяти в роботу"]
+        }
+      ]
+    },
+    marketplace: {
+      title: "🛠 Маркетплейс та Підрядники",
+      messages: [
+        { type: "user", text: "🛠 Замовити послугу: <b>«Встановлення та заміна змішувача»</b> на 18:00" },
+        { 
+          type: "bot", 
+          text: "🎉 <b>Замовлення №0042 прийнято!</b><br><div class='tg-card-box'>👷‍♂️ <b>Майстер:</b> Сергій Мельник (⭐ 4.95)<br>⏰ <b>Час візиту:</b> Сьогодні о 18:00<br>💰 <b>Орієнтовно:</b> від 450 грн<br>📱 <b>Контакт:</b> +380 (67) 123-45-67</div><i>Майстер підтвердив візит та прямує до вас.</i>",
+          buttons: ["💬 Написати майстру", "❌ Скасувати"]
+        }
+      ]
+    },
+    payment: {
+      title: "💳 Єдиний Комунальний Хаб та 1-Click Оплата",
+      messages: [
+        { type: "user", text: "📊 Показати всі мої рахунки та квитанції за цей місяць (Кв. №45)" },
+        { 
+          type: "bot", 
+          text: "🏛 <b>Єдина комунальна квитанція міста за серпень 2026:</b><br><div class='tg-card-box'>🏢 <b>Утримання будинку (ОСББ):</b> 640.00 грн<br>⚡️ <b>Світло (ДТЕК / Yasno):</b> 412.50 грн<br>💧 <b>Водоканал:</b> 230.10 грн<br>🔥 <b>Газ (Нафтогаз):</b> 185.00 грн<br>🌡 <b>Теплоенерго:</b> 840.00 грн<br>━━━━━━━━━━━━━<br>💳 <b>Разом до сплати:</b> <b>2 307.60 грн</b></div><i>Усі платіжки міста зібрані автоматично! Сплачуйте без комісій в один дотик через Apple Pay / Google Pay / карткою.</i>",
+          buttons: ["⚡️ Сплатити все (2 307.60 грн)", "📄 Завантажити єдину PDF-квитанцію"]
+        }
+      ]
+    }
+  };
+
+  const simChat = document.getElementById('simChat');
+  const simTitle = document.getElementById('simTitle');
+  const tabButtons = document.querySelectorAll('.sim-tab-btn');
+
+  function renderSimScene(sceneKey) {
+    const scene = simData[sceneKey];
+    if (!scene) return;
+
+    simTitle.textContent = scene.title;
+    simChat.innerHTML = '';
+
+    scene.messages.forEach((msg, idx) => {
+      setTimeout(() => {
+        const msgEl = document.createElement('div');
+        msgEl.className = `tg-msg ${msg.type === 'user' ? 'tg-msg-user' : 'tg-msg-bot'}`;
+        
+        let html = msg.text;
+        if (msg.buttons && msg.buttons.length) {
+          html += '<div class="tg-btn-row">';
+          msg.buttons.forEach(btnText => {
+            html += `<div class="tg-inline-btn">${btnText}</div>`;
+          });
+          html += '</div>';
+        }
+        msgEl.innerHTML = html;
+        simChat.appendChild(msgEl);
+        simChat.scrollTop = simChat.scrollHeight;
+      }, idx * 250);
+    });
+  }
+
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sceneKey = btn.getAttribute('data-scene');
+      renderSimScene(sceneKey);
+    });
+  });
+
+  // Initial simulator render
+  renderSimScene('concierge');
+
+  // 3. Interactive ROI & Economy Calculator
+  const aptSlider = document.getElementById('aptSlider');
+  const tariffSlider = document.getElementById('tariffSlider');
+  
+  const aptVal = document.getElementById('aptVal');
+  const tariffVal = document.getElementById('tariffVal');
+  
+  const resHours = document.getElementById('resHours');
+  const resDebt = document.getElementById('resDebt');
+  const resPayback = document.getElementById('resPayback');
+
+  function updateCalculator() {
+    const apts = parseInt(aptSlider.value, 10);
+    const tariff = parseFloat(tariffSlider.value);
+
+    aptVal.textContent = `${apts} кв.`;
+    tariffVal.textContent = `${tariff} грн/м²`;
+
+    // Formulas based on OSBB statistics:
+    // Chairman saves ~0.45 hrs per apartment/month on calls, tickets, meters & polls
+    const savedHours = Math.round(apts * 0.42);
+    // Debt reduction: on average 15% debt reduction from 60m2 avg apt over 12 months
+    const annualDebtReduction = Math.round(apts * 60 * tariff * 0.12 * 12);
+    // Payback period
+    const paybackText = apts > 80 ? "Миттєва (1-й тиждень)" : "1-й місяць";
+
+    resHours.textContent = `~${savedHours} год/міс`;
+    resDebt.textContent = `${annualDebtReduction.toLocaleString('uk-UA')} грн/рік`;
+    resPayback.textContent = paybackText;
+  }
+
+  if (aptSlider && tariffSlider) {
+    aptSlider.addEventListener('input', updateCalculator);
+    tariffSlider.addEventListener('input', updateCalculator);
+    updateCalculator();
+  }
+
+  // 4. Marketplace Category Filter
+  const mktFilterBtns = document.querySelectorAll('.mkt-filter-btn');
+  const mktCards = document.querySelectorAll('.mkt-card');
+
+  mktFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      mktFilterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cat = btn.getAttribute('data-cat');
+
+      mktCards.forEach(card => {
+        const cardCat = card.getAttribute('data-cat');
+        if (cat === 'all' || cardCat === cat) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+
+  // 5. FAQ Accordion
+  const faqQuestions = document.querySelectorAll('.faq-question');
+  faqQuestions.forEach(q => {
+    q.addEventListener('click', () => {
+      const item = q.parentElement;
+      const isOpen = item.classList.contains('open');
+      
+      // Close all others
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      
+      if (!isOpen) {
+        item.classList.add('open');
+      }
+    });
+  });
+
+  // 6. Lead Registration Form Handler
+  const leadForm = document.getElementById('leadForm');
+  const formSuccess = document.getElementById('formSuccess');
+
+  if (leadForm) {
+    leadForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const osbbName = document.getElementById('osbbName').value.trim();
+      const osbbCity = document.getElementById('osbbCity').value.trim();
+      const osbbApts = document.getElementById('osbbApts').value.trim();
+      const contactName = document.getElementById('contactName').value.trim();
+      const contactPhone = document.getElementById('contactPhone').value.trim();
+
+      // Show success message
+      if (formSuccess) {
+        formSuccess.style.display = 'block';
+        formSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      // Compose Telegram text with lead info
+      const text = encodeURIComponent(
+        `👋 Нова заявка на підключення ОСББ (100 грн):
+` +
+        `🏢 ОСББ/Адреса: ${osbbName}
+` +
+        `📍 Місто: ${osbbCity}
+` +
+        `🚪 Квартир: ${osbbApts}
+` +
+        `👤 Контакт: ${contactName}
+` +
+        `📞 Телефон: ${contactPhone}`
+      );
+
+      // Open manager Telegram after a brief moment
+      setTimeout(() => {
+        window.open(`https://t.me/managerAndrii?text=${text}`, '_blank');
+      }, 800);
+    });
+  }
+});
+
+</script>
+</body>
+</html>
