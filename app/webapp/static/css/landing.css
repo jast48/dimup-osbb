@@ -1488,4 +1488,199 @@ h1, h2, h3, h4, .brand-logo {
   line-height: 1.4;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   HIGH-TRUST MODULES: PARTNERS, DESKTOP WORKSPACE & PRO SUBSYSTEMS
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Partners Bar */
+.partners-bar {
+  margin: 40px auto 0;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.partner-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  font-family: var(--font-heading);
+}
+
+.partner-item-icon {
+  font-size: 1.4rem;
+}
+
+/* Desktop UI Mockup */
+.desktop-mockup-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  margin-top: 40px;
+}
+
+.desktop-browser-header {
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--border-light);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.browser-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.browser-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dot-red { background: #ef4444; }
+.dot-yellow { background: #f59e0b; }
+.dot-green { background: #10b981; }
+
+.browser-address {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  flex: 1;
+  max-width: 480px;
+}
+
+.desktop-ui-body {
+  padding: 30px;
+  background: #f8fafc;
+}
+
+.dash-top-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 800px) {
+  .dash-top-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.dash-metric-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+}
+
+.dash-metric-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  margin-top: 4px;
+}
+
+.dash-table-wrap {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.dash-table th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.dash-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-main);
+}
+
+.badge-paid {
+  background: #ecfdf5;
+  color: #065f46;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.badge-debt {
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Ukraine Coverage Grid */
+.ukraine-coverage-box {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  margin-top: 40px;
+  box-shadow: var(--shadow-md);
+}
+
+.cities-tags-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.city-tag {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(0, 87, 183, 0.15);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+.city-tag:hover {
+  background: var(--primary);
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+
 
